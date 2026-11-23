@@ -1,0 +1,3593 @@
+/**
+ * Controlador da interface.
+ * Centraliza a navegação entre telas, os avisos de módulos futuros e o
+ */
+
+// --- Referências reutilizadas pela interface. ---
+const menuItems = document.querySelectorAll('.menu__item, .sidebar-about');
+const overviewPage = document.querySelector('#overviewPage');
+const managementPage = document.querySelector('#managementPage');
+const loanPage = document.querySelector('#loanPage');
+const registrationPage = document.querySelector('#registrationPage');
+const collectionPage = document.querySelector('#collectionPage');
+const reportsPage = document.querySelector('#reportsPage');
+const helpPage = document.querySelector('#helpPage');
+const aboutPage = document.querySelector('#aboutPage');
+const pageTitle = document.querySelector('#pageTitle');
+const breadcrumbCurrent = document.querySelector('#breadcrumbCurrent');
+const viewBackButton = document.querySelector('#viewBackButton');
+const bookForm = document.querySelector('#bookForm'); 
+const loanForm = document.querySelector('#loanForm');
+const notificationButton = document.querySelector('#notificationButton');
+const notificationPanel = document.querySelector('#notificationPanel');
+const themeToggle = document.querySelector('#themeToggle');
+const sidebar = document.querySelector('#sidebar');
+const sidebarToggle = document.querySelector('#sidebarToggle');
+let pendingMessageTimer;
+let formMessageTimer;
+let loanMessageTimer;
+const sessionCollectionBooks = []; //Array que aguarda tempoririamente o cadastro dos livros
+let collectionLoaded = false; //
+let renderCollectionCatalog = null;
+const sessionActiveLoans = [];
+const dismissedNotificationKeys = new Set();
+let renderReturnsList = null;
+let openDeadlineModal = null;
+let openReturnModal = null;
+let openBookEditModal = null;
+let openBookDeleteModal = null;
+const viewHistory = ['inicio'];
+
+// Exemplos visuais exibidos somente quando não há empréstimos ativos no banco.
+// Assim que o back-end retornar um registro real, esta prévia deixa de aparecer.
+const RETURNS_LAYOUT_EXAMPLES = [
+];
+
+// --- Configurações das microinterações do menu lateral. ---
+const ABOUT_TRANSITION_REVEAL_DELAY = 900;
+const ABOUT_TRANSITION_CLEANUP_DELAY = 1520;
+
+/** Sempre inicia no tema claro e permite alternar o tema durante a sessão. */
+function setupThemeToggle() {
+  const applyTheme = (theme) => {
+    const isDark = theme === 'dark';
+    const actionLabel = isDark ? 'Ativar modo claro' : 'Ativar modo escuro';
+
+    document.documentElement.dataset.theme = theme;
+    themeToggle.setAttribute('aria-pressed', String(isDark));
+    themeToggle.setAttribute('aria-label', actionLabel);
+    themeToggle.title = actionLabel;
+  };
+
+  applyTheme('light');
+
+  themeToggle.addEventListener('click', () => {
+    const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const bounds = themeToggle.getBoundingClientRect();
+    const revealX = bounds.left + bounds.width / 2;
+    const revealY = bounds.top + bounds.height / 2;
+    const revealRadius = Math.hypot(
+      Math.max(revealX, window.innerWidth - revealX),
+      Math.max(revealY, window.innerHeight - revealY)
+    );
+
+    document.documentElement.style.setProperty('--theme-reveal-x', `${revealX}px`);
+    document.documentElement.style.setProperty('--theme-reveal-y', `${revealY}px`);
+    document.documentElement.style.setProperty('--theme-reveal-radius', `${revealRadius}px`);
+    document.documentElement.classList.add('is-theme-transitioning');
+    themeToggle.classList.remove('is-animating');
+    void themeToggle.offsetWidth;
+    themeToggle.classList.add('is-animating');
+
+    const finishToggleAnimation = () => {
+      themeToggle.classList.remove('is-animating');
+      document.documentElement.classList.remove('is-theme-transitioning');
+    };
+
+    if (!document.startViewTransition || reducedMotion) {
+      void document.documentElement.offsetWidth;
+      applyTheme(nextTheme);
+      window.setTimeout(finishToggleAnimation, reducedMotion ? 20 : 680);
+      return;
+    }
+
+    const transition = document.startViewTransition(() => applyTheme(nextTheme));
+    transition.finished.finally(finishToggleAnimation);
+  });
+}
+
+/**
+ * Reinicia uma animação CSS aplicada por classe sem alterar o conteúdo da tela.
+ * @param {HTMLElement} element Elemento que deve receber a animação.
+ */
+function replayEntranceAnimation(element) {
+  element.classList.remove('is-entering');
+  element.querySelectorAll('.screen-motion').forEach((item) => item.classList.remove('screen-motion'));
+  if (element.matches('.page-intro:not(.reports-page)')) {
+    const sections = element.querySelectorAll(
+      ':scope > .page-intro__top, :scope > .catalog-page__header, :scope > .about-hero, ' +
+      ':scope > h1, .stats-grid > *, .management-options > article, ' +
+      ':scope > .collection-search, .overview-lower > section, .catalog-summary > article, ' +
+      ':scope > .catalog-list, :scope > .loan-tabs, :scope > form, ' +
+      ':scope > .loan-layout > *, :scope > .returns-panel, :scope > .team-section'
+    );
+    sections.forEach((item, index) => {
+      item.classList.add('screen-motion');
+      item.style.setProperty('--screen-motion-delay', `${Math.min(index * 45, 225)}ms`);
+    });
+  }
+  void element.offsetWidth;
+  element.classList.add('is-entering');
+}
+
+/** Mantém os calendários acima das áreas animadas e dos recortes dos modais. */
+function setupCalendarLayers() {
+  document.querySelectorAll('.loan-calendar, .report-date-picker__popover').forEach((calendar) => {
+    if (typeof calendar.showPopover !== 'function') return;
+    const picker = calendar.parentElement;
+    const trigger = picker.querySelector('.report-date-picker__trigger, .loan-date-picker__trigger');
+    if (!trigger) return;
+    calendar.setAttribute('popover', 'manual');
+    calendar.classList.add('calendar-layer');
+
+    const positionCalendar = () => {
+      if (!calendar.matches(':popover-open')) return;
+      const bounds = trigger.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft || 0;
+      const viewportTop = viewport?.offsetTop || 0;
+      const viewportWidth = viewport?.width || window.innerWidth;
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const margin = 12;
+      const width = Math.min(calendar.classList.contains('loan-calendar') ? 320 : 360, viewportWidth - margin * 2);
+      calendar.style.width = `${width}px`;
+      calendar.style.maxHeight = `${viewportHeight - margin * 2}px`;
+      const height = calendar.getBoundingClientRect().height;
+      const below = bounds.bottom + 8;
+      const above = bounds.top - height - 8;
+      const top = below + height <= viewportTop + viewportHeight - margin ? below : above;
+      calendar.style.left = `${Math.max(viewportLeft + margin, Math.min(bounds.left, viewportLeft + viewportWidth - width - margin))}px`;
+      calendar.style.top = `${Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - height - margin))}px`;
+    };
+    const syncCalendar = () => {
+      if (calendar.hidden || !trigger.getClientRects().length) {
+        if (calendar.matches(':popover-open')) calendar.hidePopover();
+        return;
+      }
+      if (!calendar.matches(':popover-open')) calendar.showPopover();
+      positionCalendar();
+    };
+    new MutationObserver(syncCalendar).observe(calendar, { attributes: true, attributeFilter: ['hidden'] });
+    window.addEventListener('resize', positionCalendar);
+    window.visualViewport?.addEventListener('resize', positionCalendar);
+    window.visualViewport?.addEventListener('scroll', positionCalendar);
+    document.addEventListener('scroll', positionCalendar, true);
+    picker.closest('dialog')?.addEventListener('close', () => {
+      calendar.hidden = true;
+      picker.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    });
+  });
+}
+
+/**
+ * Alterna a tela visível da aplicação.
+ * @param {'inicio'|'gestao'|'emprestimos'|'acervo'|'cadastro'|'relatorios'|'ajuda'|'sobre'} view Tela que deve ser exibida.
+ */
+function openView(view, { fromHistory = false, resetHistory = false } = {}) {
+  if (!registrationPage.hidden && view !== 'cadastro') {
+    clearBookForm();
+  }
+  if (!loanPage.hidden && view !== 'emprestimos') {
+    clearLoanForm();
+    setLoanMessage('');
+  }
+  document.querySelectorAll('.calendar-layer').forEach((calendar) => {
+    calendar.hidden = true;
+    calendar.parentElement.classList.remove('is-open');
+    calendar.parentElement.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
+  });
+  if (resetHistory) {
+    viewHistory.splice(0, viewHistory.length, 'inicio');
+  } else if (!fromHistory && viewHistory[viewHistory.length - 1] !== view) {
+    viewHistory.push(view);
+  }
+
+  overviewPage.hidden = view !== 'inicio';
+  managementPage.hidden = view !== 'gestao';
+  loanPage.hidden = view !== 'emprestimos';
+  collectionPage.hidden = view !== 'acervo';
+  registrationPage.hidden = view !== 'cadastro';
+  reportsPage.hidden = view !== 'relatorios';
+  helpPage.hidden = view !== 'ajuda';
+  aboutPage.hidden = view !== 'sobre';
+
+  const titleByView = {
+    inicio: 'Visão geral',
+    gestao: 'Gestão',
+    emprestimos: 'Empréstimos',
+    acervo: 'Acervo',
+    cadastro: 'Cadastro de livro',
+    relatorios: 'Relatórios',
+    ajuda: 'Ajuda',
+    sobre: 'Sobre'
+  };
+  const title = titleByView[view];
+
+  pageTitle.textContent = title;
+  breadcrumbCurrent.textContent = title;
+  document.title = `${title} | Bibliotech`;
+  viewBackButton.hidden = viewHistory.length <= 1;
+
+  // As telas filhas mantêm destacado o ponto de entrada correspondente no menu.
+  const activePage = view === 'inicio'
+    ? 'Visão geral'
+    : view === 'acervo'
+      ? 'Acervo'
+      : view === 'relatorios'
+        ? 'Relatórios'
+      : view === 'ajuda'
+        ? null
+      : view === 'sobre'
+        ? 'Sobre'
+        : 'Gestão';
+  menuItems.forEach((item) => {
+    item.classList.toggle('is-active', item.dataset.page === activePage);
+  });
+
+  const pageByView = {
+    inicio: overviewPage,
+    gestao: managementPage,
+    emprestimos: loanPage,
+    acervo: collectionPage,
+    cadastro: registrationPage,
+    relatorios: reportsPage,
+    ajuda: helpPage,
+    sobre: aboutPage
+  };
+  const visiblePage = pageByView[view];
+  replayEntranceAnimation(visiblePage);
+}
+
+/** Retorna à última tela visitada sem duplicá-la no histórico interno. */
+function goBack() {
+  if (viewHistory.length <= 1) return;
+  viewHistory.pop();
+  openView(viewHistory[viewHistory.length - 1], { fromHistory: true });
+}
+
+/**
+ * Mostra um aviso temporário sem interferir no painel de notificações.
+ * @param {string} message Texto explicativo para o usuário.
+ */
+function showPending(message) {
+  let notice = document.querySelector('#pendingNotice');
+
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'pendingNotice';
+    notice.className = 'pending-notice';
+    notice.setAttribute('role', 'status');
+    notice.setAttribute('aria-live', 'polite');
+    document.body.append(notice);
+  }
+
+  notice.textContent = message;
+  notice.hidden = false;
+  replayEntranceAnimation(notice);
+
+  window.clearTimeout(pendingMessageTimer);
+  pendingMessageTimer = window.setTimeout(() => {
+    notice.hidden = true;
+  }, 3500);
+}
+
+/**
+ * Controla a central de relatórios, suas minitelas e a demonstração visual do PDF.
+ * As consultas mensais permanecem desacopladas até que o back-end exponha os dados.
+ */
+function setupReportCenter() {
+  const reportDialogs = {
+    returnedMonth: document.querySelector('#returnedMonthReportModal'),
+    loanedMonth: document.querySelector('#loanedMonthReportModal'),
+    topClassMonth: document.querySelector('#topClassMonthReportModal'),
+    topBooksMonth: document.querySelector('#topBooksMonthReportModal'),
+    topBooksAllTime: document.querySelector('#topBooksAllTimeReportModal'),
+    general: document.querySelector('#generalReportModal')
+  };
+  const pdfTimers = new WeakMap();
+  const today = new Date();
+  const datePickers = [...document.querySelectorAll('[data-report-date-picker]')];
+  const formatReportPeriod = (month, year) => {
+    const label = new Intl.DateTimeFormat('pt-BR', {
+      month: 'long',
+      year: 'numeric'
+    }).format(new Date(year, month, 1));
+    return label.charAt(0).toLocaleUpperCase('pt-BR') + label.slice(1);
+  };
+
+  const closeDatePicker = (picker) => {
+    const trigger = picker.querySelector('.report-date-picker__trigger');
+    const popover = picker.querySelector('.report-date-picker__popover');
+    picker.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    popover.hidden = true;
+  };
+
+  datePickers.forEach((picker) => {
+    const trigger = picker.querySelector('.report-date-picker__trigger');
+    const popover = picker.querySelector('.report-date-picker__popover');
+    const periodLabel = picker.querySelector('[data-report-current-month]');
+    const yearLabel = picker.querySelector('[data-report-picker-year]');
+    const monthButtons = [...picker.querySelectorAll('[data-report-month]')];
+    const yearButtons = [...picker.querySelectorAll('[data-report-year-change]')];
+    const currentDateButton = picker.querySelector('[data-report-current-date]');
+    let selectedMonth = today.getMonth();
+    let selectedYear = today.getFullYear();
+    let visibleYear = selectedYear;
+
+    const updatePeriod = () => {
+      periodLabel.textContent = formatReportPeriod(selectedMonth, selectedYear);
+      picker.dataset.reportMonth = String(selectedMonth + 1);
+      picker.dataset.reportYear = String(selectedYear);
+    };
+
+    const renderCalendar = () => {
+      yearLabel.textContent = String(visibleYear);
+      monthButtons.forEach((button) => {
+        const isSelected = Number(button.dataset.reportMonth) === selectedMonth && visibleYear === selectedYear;
+        button.classList.toggle('is-selected', isSelected);
+        button.setAttribute('aria-pressed', String(isSelected));
+      });
+      yearButtons.forEach((button) => {
+        const nextYear = visibleYear + Number(button.dataset.reportYearChange);
+        button.disabled = nextYear < 2026 || nextYear > 2045;
+      });
+    };
+
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const willOpen = popover.hidden;
+      datePickers.forEach((otherPicker) => closeDatePicker(otherPicker));
+      if (!willOpen) return;
+      visibleYear = selectedYear;
+      renderCalendar();
+      popover.hidden = false;
+      picker.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+    });
+
+    popover.addEventListener('click', (event) => event.stopPropagation());
+
+    yearButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        visibleYear += Number(button.dataset.reportYearChange);
+        renderCalendar();
+      });
+    });
+
+    monthButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        selectedMonth = Number(button.dataset.reportMonth);
+        selectedYear = visibleYear;
+        updatePeriod();
+        renderCalendar();
+        closeDatePicker(picker);
+        trigger.focus();
+
+        picker.dispatchEvent(new Event('change'));
+      });
+    });
+
+    currentDateButton.addEventListener('click', () => {
+      selectedMonth = today.getMonth();
+      selectedYear = today.getFullYear();
+      visibleYear = selectedYear;
+      updatePeriod();
+      renderCalendar();
+      closeDatePicker(picker);
+      trigger.focus();
+
+      picker.dispatchEvent(new Event('change'));
+    });
+
+
+    picker.addEventListener('change', () => {
+      const dialogId = picker.closest('dialog')?.id;
+      
+      if (dialogId === 'returnedMonthReportModal') {
+        devolucoesDoMes();
+      } else if (dialogId === 'loanedMonthReportModal') {
+        emprestimosDoMes();
+      } else if (dialogId === 'topClassMonthReportModal') {
+        turmaDestaque();
+      } else if (dialogId === 'topBooksMonthReportModal') {
+        livrosMaisLidosDoMes();
+      }
+    });
+
+    picker.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || popover.hidden) return;
+      event.stopPropagation();
+      closeDatePicker(picker);
+      trigger.focus();
+    });
+
+    updatePeriod();
+    renderCalendar();
+  });
+
+  document.addEventListener('click', () => {
+    datePickers.forEach((picker) => closeDatePicker(picker));
+  });
+
+  const resetPdfButton = (button) => {
+    const timers = pdfTimers.get(button) || [];
+    timers.forEach((timer) => window.clearTimeout(timer));
+    pdfTimers.delete(button);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    button.classList.remove('is-processing', 'is-complete', 'is-resetting', 'is-ready');
+    button.querySelector('.pdf-action__label').textContent = 'Gerar PDF';
+  };
+
+  Object.values(reportDialogs).forEach((dialog) => {
+    if (!dialog) return;
+    let closeTimer;
+    const closeDialog = () => {
+      if (!dialog.open || dialog.classList.contains('is-closing')) return;
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        dialog.close();
+        return;
+      }
+
+      dialog.classList.add('is-closing');
+      closeTimer = window.setTimeout(() => dialog.close(), 170);
+    };
+
+    dialog.querySelectorAll('[data-report-close]').forEach((button) => {
+      button.addEventListener('click', closeDialog);
+    });
+
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) closeDialog();
+    });
+
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeDialog();
+    });
+
+    dialog.addEventListener('close', () => {
+      window.clearTimeout(closeTimer);
+      dialog.classList.remove('is-closing');
+      dialog.querySelectorAll('[data-report-date-picker]').forEach(closeDatePicker);
+      dialog.querySelectorAll('[data-pdf-demo]').forEach(resetPdfButton);
+      dialog.querySelectorAll('[data-pdf-status]').forEach((status) => {
+        status.textContent = '';
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-report-open]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const reportType = button.dataset.reportOpen;
+    const dialog = reportDialogs[reportType];
+    
+    if (!dialog) return;
+
+    // Chama a função correspondente ao botão clicado
+    if (reportType === 'returnedMonth') {
+      await devolucoesDoMes();
+    } else if (reportType === 'loanedMonth') {
+      await emprestimosDoMes();
+    } else if (reportType === 'topClassMonth') {
+      await turmaDestaque();
+    } else if (reportType === 'topBooksMonth') {
+      await livrosMaisLidosDoMes();
+    }
+    
+
+    dialog.showModal();
+  });
+});
+
+  document.querySelectorAll('[data-report-pending]').forEach((button) => {
+    button.addEventListener('click', () => {
+      showPending(`O relatório de ${button.dataset.reportPending} será conectado pela próxima entrega do front-end.`);
+    });
+  });
+
+  document.querySelectorAll('[data-pdf-demo]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.disabled) return;
+
+      const status = button.parentElement.querySelector('[data-pdf-status]');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const processingTime = reducedMotion ? 120 : 950;
+      const completeTime = reducedMotion ? 350 : 1150;
+
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.classList.add('is-processing');
+      button.querySelector('.pdf-action__label').textContent = 'Preparando';
+      if (status) status.textContent = 'Preparando a visualização do relatório em PDF.';
+
+      const completeTimer = window.setTimeout(() => {
+        button.classList.remove('is-processing');
+        button.classList.add('is-complete');
+        if (status) status.textContent = 'Animação concluída. A geração do arquivo será conectada em uma etapa futura.';
+
+        const resetTimer = window.setTimeout(() => {
+          button.classList.add('is-resetting');
+
+          const readyTimer = window.setTimeout(() => {
+            resetPdfButton(button);
+            button.classList.add('is-ready');
+            if (status) status.textContent = 'Botão pronto para uma nova visualização.';
+
+            const cleanupTimer = window.setTimeout(() => {
+              button.classList.remove('is-ready');
+              pdfTimers.delete(button);
+            }, 190);
+            pdfTimers.set(button, [cleanupTimer]);
+          }, reducedMotion ? 20 : 320);
+          pdfTimers.set(button, [readyTimer]);
+        }, completeTime);
+        pdfTimers.set(button, [resetTimer]);
+      }, processingTime);
+
+      pdfTimers.set(button, [completeTimer]);
+    });
+  });
+}
+
+/** Remove acentos para tornar a busca mais flexível. */
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR');
+}
+
+//Função que possibilita carregar os livros cadastrados no acervo a partir doo banco de dados
+async function loadCollectionBooks() {
+  const catalogEmpty = document.querySelector('#catalogEmpty');
+  if (catalogEmpty) catalogEmpty.hidden = true;
+  
+  
+  try{
+    const resultado = await window.bibliotech?.books?.list();
+    // Fora do Electron não há dados reais disponíveis para listar.
+    if (!resultado) {
+      sessionCollectionBooks.length = 0;
+      notifyCollectionUpdated();
+      return{
+        ok: false,
+        message: 'Não foi possível obter os dados do acervo fora do Electron.'
+      };
+    }
+
+    if (resultado.ok) {
+      sessionCollectionBooks.length = 0;
+      resultado.payload.forEach((livro) => {
+        sessionCollectionBooks.push({
+          id: livro.id_livro,
+          title: livro.nome,
+          author: livro.autor,
+          genre: livro.genero,
+          available: livro.quantidade_livros_disponiveis,
+          total: livro.quantidade_livros_total,
+          registeredAt: livro.data_cadastro,
+          // Campo já retornado pelo cadastro/listagem para a interface exibir no acervo.
+          notes: livro.observacao
+        });
+      });
+    }else{
+      notifyCollectionUpdated();
+      return{
+        ok: false,
+        message: 'Erro ao carregar o acervo'
+      };
+    }
+  }catch(erro){
+      console.error(erro);
+      notifyCollectionUpdated();
+      return{
+        ok:false,
+        message: 'Erro ao carregar o acervo'
+      }
+    }
+    notifyCollectionUpdated();
+
+} 
+
+//refresh no acervo 
+function notifyCollectionUpdated() {
+  if (typeof renderCollectionCatalog === 'function') renderCollectionCatalog();
+  document.dispatchEvent(new Event('collection-updated'));
+}
+
+
+/** Renderiza o catálogo*/
+function setupCollectionCatalog() {
+  const tableBody = document.querySelector('#catalogTableBody');
+  const empty = document.querySelector('#catalogEmpty');
+  const searchInput = document.querySelector('#catalogSearchInput');
+  const genreSelect = document.querySelector('#catalogGenreSelect');
+  const genreFilter = document.querySelector('#catalogGenreFilter');
+  const genreText = genreFilter.querySelector('span');
+  const genreOptionsPanel = document.querySelector('#catalogGenreOptions');
+  const genreOptions = [...genreOptionsPanel.querySelectorAll('[data-catalog-genre]')];
+  const count = document.querySelector('#catalogCount');
+  const total = document.querySelector('#catalogTotal');
+  const available = document.querySelector('#catalogAvailable');
+  const loaned = document.querySelector('#catalogLoaned');
+  
+  const renderCatalog = () => {
+    const term = normalizeSearchText(searchInput.value.trim());
+    const genre = genreSelect.dataset.value || '';
+    const books = sessionCollectionBooks.filter((book) => {
+      const matchesTerm = !term || [book.title, book.author].some((value) => normalizeSearchText(value).includes(term));
+      return matchesTerm && (!genre || book.genre === genre);
+    });
+    const totalBooks = sessionCollectionBooks.reduce((sum, book) => sum + Number(book.total || 0), 0);
+    const availableBooks = sessionCollectionBooks.reduce((sum, book) => sum + Number(book.available || 0), 0);
+
+    total.textContent = String(totalBooks);
+    available.textContent = String(availableBooks);
+    loaned.textContent = String(Math.max(0, totalBooks - availableBooks));
+    count.textContent = `${books.length} ${books.length === 1 ? 'livro' : 'livros'}`;
+    tableBody.replaceChildren();
+    empty.hidden = books.length > 0;
+
+    books.forEach((book) => {
+      const row = document.createElement('tr');
+      const values = [book.title, book.author, book.genre, `${book.available}/${book.total} disponível(is)`];
+      values.forEach((value, index) => {
+        const cell = document.createElement('td');
+        if (index === 0) {
+          cell.className = 'catalog-table__title';
+
+          const title = document.createElement('span');
+          title.textContent = value;
+          cell.append(title);
+
+          if (book.notes?.trim()) {
+            const noteButton = document.createElement('button');
+            noteButton.type = 'button';
+            noteButton.className = 'catalog-note';
+            noteButton.setAttribute('aria-label', `Ver observação do livro ${book.title}`);
+            const noteIcon = document.createElement('span');
+            noteIcon.setAttribute('aria-hidden', 'true');
+            noteIcon.textContent = 'i';
+            const noteTooltip = document.createElement('span');
+            noteTooltip.className = 'catalog-note__tooltip';
+            noteTooltip.setAttribute('role', 'tooltip');
+            noteTooltip.textContent = `Observação: ${book.notes}`;
+            noteButton.append(noteIcon, noteTooltip);
+            cell.append(noteButton);
+          }
+        } else {
+          cell.textContent = value;
+        }
+        if (index === 3) cell.className = 'catalog-table__availability';
+        row.append(cell);
+      });
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'catalog-table__actions';
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'catalog-edit-button';
+      editButton.setAttribute('aria-label', `Editar ${book.title}`);
+      editButton.setAttribute('aria-haspopup', 'dialog');
+
+      const editIcon = document.createElement('span');
+      editIcon.className = 'material-symbols-outlined';
+      editIcon.setAttribute('aria-hidden', 'true');
+      editIcon.textContent = 'edit';
+
+      const editText = document.createElement('span');
+      editText.textContent = 'Editar';
+      editButton.append(editIcon, editText);
+      editButton.addEventListener('click', () => openBookEditModal?.(book, editButton));
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'catalog-delete-button';
+      deleteButton.setAttribute('aria-label', `Excluir ${book.title}`);
+      deleteButton.setAttribute('aria-haspopup', 'dialog');
+
+      const deleteIcon = document.createElement('span');
+      deleteIcon.className = 'material-symbols-outlined';
+      deleteIcon.setAttribute('aria-hidden', 'true');
+      deleteIcon.textContent = 'delete';
+
+      const deleteText = document.createElement('span');
+      deleteText.textContent = 'Excluir';
+      deleteButton.append(deleteIcon, deleteText);
+      deleteButton.addEventListener('click', () => openBookDeleteModal?.(book, deleteButton));
+
+      actionsCell.append(editButton, deleteButton);
+      row.append(actionsCell);
+      tableBody.append(row);
+    });
+  };
+
+  searchInput.addEventListener('input', renderCatalog);
+  const setGenreOptionsOpen = (isOpen) => {
+    genreSelect.classList.toggle('is-open', isOpen);
+    genreOptionsPanel.hidden = !isOpen;
+    genreFilter.setAttribute('aria-expanded', String(isOpen));
+  };
+
+  genreFilter.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setGenreOptionsOpen(genreOptionsPanel.hidden);
+  });
+
+  genreOptions.forEach((option) => {
+    option.addEventListener('click', () => {
+      genreSelect.dataset.value = option.dataset.catalogGenre;
+      genreText.textContent = option.textContent;
+      genreOptions.forEach((item) => item.setAttribute('aria-selected', String(item === option)));
+      setGenreOptionsOpen(false);
+      renderCatalog();
+      genreFilter.focus();
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#catalogGenreSelect')) setGenreOptionsOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setGenreOptionsOpen(false);
+  });
+  document.addEventListener('collection-updated', renderCatalog);
+  renderCollectionCatalog = renderCatalog;
+  renderCatalog();
+}
+
+/**
+ * Controla a mini tela de edição e mantém a estrutura isolada da futura persistência.
+ * Nesta etapa, as mudanças atualizam somente a coleção carregada na interface.
+ */
+function setupBookEditModal() {
+  const modal = document.querySelector('#bookEditModal');
+  const form = document.querySelector('#bookEditForm');
+  const message = document.querySelector('#bookEditMessage');
+  const closeButtons = [...modal.querySelectorAll('[data-book-edit-close]')];
+  const genreInput = form.elements.genre;
+  const genreSelect = document.querySelector('#bookEditGenreSelect');
+  const genreTrigger = document.querySelector('#bookEditGenreButton');
+  const genreValue = document.querySelector('#bookEditGenreValue');
+  const genreOptionsPanel = document.querySelector('#bookEditGenreOptions');
+  let selectedBook = null;
+  let triggerButton = null;
+  let borrowedCopies = 0;
+
+  const setGenreOpen = (isOpen) => {
+    genreSelect.classList.toggle('is-open', isOpen);
+    genreOptionsPanel.hidden = !isOpen;
+    genreTrigger.setAttribute('aria-expanded', String(isOpen));
+  };
+
+  const getGenreOptions = () => [...genreOptionsPanel.querySelectorAll('[role="option"]')];
+
+  const selectGenre = (value, label = value) => {
+    genreInput.value = value;
+    genreValue.textContent = label || 'Selecione um gênero';
+    genreSelect.classList.toggle('has-value', Boolean(value));
+    getGenreOptions().forEach((option) => {
+      option.setAttribute('aria-selected', String(option.dataset.value === value));
+    });
+    genreInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setGenreOpen(false);
+  };
+
+  // Reaproveita a lista oficial do formulário de cadastro para evitar divergências.
+  document.querySelectorAll('#genreOptions [data-value]').forEach((registrationOption) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', 'false');
+    option.dataset.value = registrationOption.dataset.value;
+    option.textContent = registrationOption.textContent;
+    genreOptionsPanel.append(option);
+  });
+
+  const clearValidation = () => {
+    message.textContent = '';
+    form.querySelectorAll('.is-invalid').forEach((field) => field.classList.remove('is-invalid'));
+    form.querySelectorAll('[aria-invalid]').forEach((control) => control.setAttribute('aria-invalid', 'false'));
+    form.querySelectorAll('.book-edit-modal__field').forEach((field) => {
+      if (field.querySelector('[readonly]')) return;
+      field.querySelector('small').textContent = '';
+    });
+  };
+
+  const closeModal = () => {
+    if (!modal.open) return;
+    setGenreOpen(false);
+    modal.close();
+    selectedBook = null;
+    triggerButton?.focus();
+    triggerButton = null;
+  };
+
+  const validateField = (input) => {
+    const field = input.closest('.book-edit-modal__field');
+    const value = input.value.trim();
+    let error = '';
+
+    if (input.required && !value) {
+      error = 'Este campo é obrigatório.';
+    } else if (['total', 'available'].includes(input.name) && (!Number.isInteger(Number(value)) || Number(value) < Number(input.min))) {
+      error = `Informe um número inteiro igual ou maior que ${input.min}.`;
+    } else if (input.name === 'total' && Number(value) < borrowedCopies) {
+      error = `A quantidade não pode ser menor que os ${borrowedCopies} exemplar(es) emprestado(s).`;
+    }
+
+    const validationControl = input.name === 'genre' ? genreTrigger : input;
+    field.classList.toggle('is-invalid', Boolean(error));
+    validationControl.setAttribute('aria-invalid', String(Boolean(error)));
+    field.querySelector('small').textContent = error;
+    return !error;
+  };
+
+  openBookEditModal = (book, button) => {
+    selectedBook = book;
+    triggerButton = button;
+    form.elements.title.value = book.title || '';
+    form.elements.author.value = book.author || '';
+    genreOptionsPanel.querySelector('[data-book-edit-custom]')?.remove();
+    const currentGenre = book.genre || '';
+    const knownGenre = getGenreOptions().find((option) => option.dataset.value === currentGenre);
+    if (currentGenre && !knownGenre) {
+      const customOption = document.createElement('button');
+      customOption.type = 'button';
+      customOption.setAttribute('role', 'option');
+      customOption.setAttribute('aria-selected', 'false');
+      customOption.dataset.value = currentGenre;
+      customOption.dataset.bookEditCustom = 'true';
+      customOption.textContent = currentGenre;
+      genreOptionsPanel.prepend(customOption);
+    }
+    selectGenre(currentGenre);
+    const totalCopies = Number(book.total || 0);
+    const availableCopies = Number(book.available || 0);
+    borrowedCopies = Math.max(0, totalCopies - availableCopies);
+    form.elements.total.value = totalCopies;
+    form.elements.available.value = availableCopies;
+    form.elements.registeredAt.value = formatShortDatePtBr(book.registeredAt);
+    form.elements.notes.value = book.notes || '';
+    clearValidation();
+    modal.showModal();
+    form.elements.title.focus();
+  };
+
+  form.querySelectorAll('input[required]').forEach((input) => {
+    input.addEventListener('blur', () => validateField(input));
+    input.addEventListener('input', () => {
+      if (input.closest('.book-edit-modal__field').classList.contains('is-invalid')) validateField(input);
+    });
+  });
+
+  form.elements.total.addEventListener('input', () => {
+    const total = Number(form.elements.total.value);
+    form.elements.available.value = Number.isInteger(total) && total >= borrowedCopies
+      ? Math.max(0, total - borrowedCopies)
+      : '';
+  });
+
+  genreTrigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setGenreOpen(genreOptionsPanel.hidden);
+  });
+
+  genreTrigger.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    event.preventDefault();
+    setGenreOpen(true);
+    const options = getGenreOptions();
+    const selectedIndex = options.findIndex((option) => option.getAttribute('aria-selected') === 'true');
+    const fallbackIndex = event.key === 'ArrowDown' ? 0 : options.length - 1;
+    options[selectedIndex >= 0 ? selectedIndex : fallbackIndex]?.focus();
+  });
+
+  genreOptionsPanel.addEventListener('click', (event) => {
+    const option = event.target.closest('[role="option"]');
+    if (!option) return;
+    event.stopPropagation();
+    selectGenre(option.dataset.value, option.textContent);
+    genreTrigger.focus();
+  });
+
+  genreOptionsPanel.addEventListener('keydown', (event) => {
+    const options = getGenreOptions();
+    const index = options.indexOf(event.target);
+    if (event.key === 'Escape') {
+      setGenreOpen(false);
+      genreTrigger.focus();
+      return;
+    }
+    if (index < 0 || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? options.length - 1
+        : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+    options[nextIndex].focus();
+  });
+
+  form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!selectedBook) return;
+
+  const requiredFields = [...form.querySelectorAll('input[required]')];
+  const isValid = requiredFields.map(validateField).every(Boolean);
+  const total = Number(form.elements.total.value);
+  const available = Math.max(0, total - borrowedCopies);
+
+  if (!isValid) {
+    message.textContent = 'Revise os campos destacados antes de salvar.';
+    (form.querySelector('[aria-invalid="true"]') || genreTrigger).focus();
+    return;
+  }
+
+  Object.assign(selectedBook, {
+    title: form.elements.title.value.trim(),
+    author: form.elements.author.value.trim(),
+    genre: form.elements.genre.value.trim(),
+    total,
+    available,
+    notes: form.elements.notes.value.trim()
+  });
+
+  const dadosParaBaseDeDados = { 
+    id_livro: selectedBook.id_livro || selectedBook.id, 
+    nome: form.elements.title.value.trim(),
+    autor: form.elements.author.value.trim(),
+    genero: form.elements.genre.value.trim(),
+    quantidade_livros_total: total,
+    quantidade_livros_disponiveis: available,
+    observacao: form.elements.notes.value.trim()
+  };
+
+  try {
+    const resposta = await window.bibliotech.books.update(dadosParaBaseDeDados);
+    
+    if (resposta.ok) {
+      notifyCollectionUpdated();
+      loadActiveLoans();
+      closeModal();
+      showPending('Alterações aplicadas e guardadas na base de dados com sucesso.');
+    } else {
+      message.textContent = 'Erro ao guardar: ' + resposta.message;
+    }
+  } catch (erro) {
+    console.error("Erro na comunicação com o back-end:", erro);
+    message.textContent = 'Erro fatal ao tentar comunicar com a base de dados.';
+  }
+});
+
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#bookEditGenreSelect')) setGenreOpen(false);
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
+  });
+  modal.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeModal();
+  });
+}
+
+/** Controla a confirmação e retira o livro do acervo sem apagar seu histórico. */
+function setupBookDeleteModal() {
+  const modal = document.querySelector('#bookDeleteModal');
+  const form = document.querySelector('#bookDeleteForm');
+  const title = document.querySelector('#bookDeleteTitle');
+  const author = document.querySelector('#bookDeleteAuthor');
+  const message = document.querySelector('#bookDeleteMessage');
+  const confirmButton = document.querySelector('#bookDeleteConfirmButton');
+  const closeButtons = [...modal.querySelectorAll('[data-book-delete-close]')];
+  let selectedBook = null;
+  let triggerButton = null;
+
+  const resetConfirmButton = () => {
+    confirmButton.disabled = false;
+    confirmButton.removeAttribute('aria-busy');
+    confirmButton.querySelector('span:last-child').textContent = 'Excluir livro';
+  };
+
+  const closeModal = ({ restoreFocus = true } = {}) => {
+    if (!modal.open) return;
+    modal.close();
+    selectedBook = null;
+    resetConfirmButton();
+    if (restoreFocus) triggerButton?.focus();
+    triggerButton = null;
+  };
+
+  openBookDeleteModal = (book, button) => {
+    selectedBook = book;
+    triggerButton = button;
+    title.textContent = book.title || 'Livro sem título';
+    author.textContent = book.author || 'Autor não informado';
+    message.textContent = '';
+    resetConfirmButton();
+    modal.showModal();
+    closeButtons.at(-1)?.focus();
+  };
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedBook || confirmButton.disabled) return;
+
+    confirmButton.disabled = true;
+    confirmButton.setAttribute('aria-busy', 'true');
+    confirmButton.querySelector('span:last-child').textContent = 'Excluindo...';
+    message.textContent = '';
+
+    try {
+      const response = await window.bibliotech?.books?.remove(selectedBook.id);
+      if (!response?.ok) {
+        message.textContent = response?.message || 'Não foi possível excluir o livro do acervo.';
+        resetConfirmButton();
+        return;
+      }
+
+      closeModal({ restoreFocus: false });
+      await loadCollectionBooks();
+      carregarVisaoGeral();
+      await atualizarRelatorios();
+      showPending(response.message);
+    } catch (error) {
+      console.error('Erro ao excluir o livro do acervo:', error);
+      message.textContent = 'Não foi possível comunicar com o banco de dados.';
+      resetConfirmButton();
+    }
+  });
+
+  closeButtons.forEach((button) => button.addEventListener('click', () => closeModal()));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
+  });
+  modal.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeModal();
+  });
+}
+
+/** Abre e fecha exclusivamente o painel acionado pelo botão de notificações. */
+function setupNotifications() {
+  const setPanelOpen = (isOpen) => {
+    notificationPanel.hidden = !isOpen;
+    notificationButton.setAttribute('aria-expanded', String(isOpen));
+
+    if (isOpen) {
+      replayEntranceAnimation(notificationPanel);
+      notificationItens();
+    }
+  };
+
+  notificationButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setPanelOpen(notificationPanel.hidden);
+  });
+
+  document.querySelector('#notificationCloseButton')?.addEventListener('click', () => {
+    setPanelOpen(false);
+    notificationButton.focus();
+  });
+
+  notificationPanel.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', () => setPanelOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || notificationPanel.hidden) return;
+    setPanelOpen(false);
+    notificationButton.focus();
+  });
+}
+
+function getNotificationKey(item) {
+  return [
+    item.nome_livro,
+    item.nome_solicitante,
+    item.tipo_solicitante,
+    item.turma_serie,
+    item.data_devolucao_prevista
+  ].map((value) => String(value ?? '')).join('|');
+}
+
+function showNotificationEmptyState(title = 'Nenhuma notificação', description = 'Quando houver novidades, elas aparecerão aqui.') {
+  const emptyState = document.querySelector('#notification-panel__empty');
+  const notificationInfo = document.querySelector('#notification-panel__info');
+  const notificationList = document.querySelector('#notification-panel-list');
+  const notificationDot = document.querySelector('#notification__dot');
+  const notificationCount = document.querySelector('#notificationCount');
+
+  notificationList.replaceChildren();
+  document.querySelector('#notificationEmptyTitle').textContent = title;
+  document.querySelector('#notificationEmptyDescription').textContent = description;
+  emptyState.hidden = false;
+  notificationInfo.hidden = true;
+  notificationDot.hidden = true;
+  notificationCount.textContent = '0';
+  notificationCount.hidden = true;
+  notificationCount.setAttribute('aria-label', '0 notificações');
+}
+
+function createNotificationItem(loan) {
+  const item = document.createElement('article');
+  const icon = document.createElement('span');
+  const content = document.createElement('div');
+  const title = document.createElement('strong');
+  const detail = document.createElement('p');
+  const meta = document.createElement('div');
+  const borrower = document.createElement('span');
+  const dueDate = document.createElement('time');
+  const key = getNotificationKey(loan);
+  const rawDate = String(loan.data_devolucao_prevista ?? '').slice(0, 10);
+  const studentClass = loan.tipo_solicitante === 'aluno' && loan.turma_serie
+    ? ` · ${loan.turma_serie}`
+    : '';
+
+  item.className = 'notification-panel-item';
+  item.dataset.notificationKey = key;
+  item.setAttribute('role', 'listitem');
+
+  icon.className = 'notification-panel-item__icon material-symbols-outlined';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = 'event_upcoming';
+
+  content.className = 'notification-panel-item__content';
+  title.className = 'notification-panel-item__title';
+  
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoje.getDate()).padStart(2, '0');
+  const dataHojeStr = `${ano}-${mes}-${dia}`;
+
+  // Data de Ontem
+  const ontem = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1);
+  const dataOntemStr = `${ontem.getFullYear()}-${String(ontem.getMonth() + 1).padStart(2, '0')}-${String(ontem.getDate()).padStart(2, '0')}`;
+
+  if (rawDate === dataOntemStr) {
+    title.textContent = 'Venceu ontem';
+    title.style.color = '#d32f2f'; 
+    icon.textContent = 'warning'; // Muda o ícone para um alerta
+    icon.style.color = '#d32f2f';  
+  } else if (rawDate === dataHojeStr) {
+    title.textContent = 'Devolução hoje';
+  } else {
+    title.textContent = 'Devolução amanhã';
+  }
+
+  detail.className = 'notification-panel-item__detail';
+  detail.textContent = `“${loan.nome_livro || 'Livro não informado'}” precisa ser devolvido.`;
+
+  meta.className = 'notification-panel-item__meta';
+  borrower.textContent = `${loan.nome_solicitante || 'Leitor não informado'}${studentClass}`;
+  dueDate.dateTime = rawDate;
+  dueDate.textContent = formatarData(loan.data_devolucao_prevista);
+  meta.append(borrower, dueDate);
+  content.append(title, detail, meta);
+  item.append(icon, content);
+
+  return item;
+}
+
+function renderNotificationItems(items) {
+  const emptyState = document.querySelector('#notification-panel__empty');
+  const notificationInfo = document.querySelector('#notification-panel__info');
+  const notificationList = document.querySelector('#notification-panel-list');
+  const notificationDot = document.querySelector('#notification__dot');
+  const notificationCount = document.querySelector('#notificationCount');
+  const notificationSummary = document.querySelector('#notificationSummary');
+  const count = items.length;
+
+  notificationList.replaceChildren(...items.map(createNotificationItem));
+  emptyState.hidden = true;
+  notificationInfo.hidden = false;
+  notificationDot.hidden = false;
+  notificationCount.hidden = false;
+  notificationCount.textContent = String(count);
+  notificationCount.setAttribute('aria-label', `${count} ${count === 1 ? 'notificação' : 'notificações'}`);
+  notificationSummary.textContent = `${count} ${count === 1 ? 'aviso pendente' : 'avisos pendentes'}`;
+}
+
+async function notificationItens() {
+  try {
+    const response = await window.bibliotech.notifications.listItens();
+
+    if (!response.ok) {
+      console.error('Erro ao carregar notificações:', response.message);
+      showNotificationEmptyState('Não foi possível carregar', 'Tente abrir as notificações novamente.');
+      return;
+    }
+
+    const items = Array.isArray(response.payload)
+      ? response.payload.filter((item) => !dismissedNotificationKeys.has(getNotificationKey(item)))
+      : [];
+
+    if (items.length === 0) {
+      showNotificationEmptyState();
+      return;
+    }
+
+    renderNotificationItems(items);
+  } catch (error) {
+    console.error('Erro ao buscar notificações:', error);
+    showNotificationEmptyState('Não foi possível carregar', 'Tente abrir as notificações novamente.');
+  }
+}
+
+function formatarData(data) {
+  const normalizedDate = String(data ?? '').slice(0, 10);
+  const [ano, mes, dia] = normalizedDate.split('-');
+
+  if (!ano || !mes || !dia) return 'Data não informada';
+  return `${dia}/${mes}/${ano}`;
+}
+
+function clearNotifications() {
+  document.querySelectorAll('#notification-panel-list [data-notification-key]').forEach((item) => {
+    dismissedNotificationKeys.add(item.dataset.notificationKey);
+  });
+  showNotificationEmptyState('Tudo certo por aqui', 'Você limpou todos os avisos atuais.');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const cleanButton = document.getElementById('clearNotificationsButton');
+
+    if (cleanButton) {
+        cleanButton.addEventListener('click', clearNotifications);
+    }
+});
+
+
+
+/**
+ * Adiciona uma resposta breve de clique aos botões da interface. A classe é removida automaticamente para não interferir no hover.
+ */
+function setupClickFeedback() {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) return;
+
+  document.querySelectorAll('button').forEach((button) => {
+    button.addEventListener('pointerdown', () => {
+      button.classList.remove('is-pressed');
+      void button.offsetWidth;
+      button.classList.add('is-pressed');
+      window.setTimeout(() => button.classList.remove('is-pressed'), 160);
+    });
+  });
+}
+
+/**
+ * Valida um campo do formulário e atualiza sua mensagem de erro.
+ * @param {HTMLInputElement|HTMLTextAreaElement} input Campo que será validado.
+ * @returns {boolean} true quando o campo está correto.
+ */
+function validateBookField(input) {
+  const value = input.value.trim();
+  const quantity = Number(value);
+  let errorMessage = '';
+
+  if (input.required && !value) {
+    errorMessage = 'Este campo é obrigatório.';
+  } else if (input.name === 'quantity' && (!Number.isInteger(quantity) || quantity < 1)) {
+    errorMessage = 'Informe uma quantidade inteira igual ou maior que 1.';
+  }
+
+  const field = input.closest('label, .form-field');
+  const validationControl = input.name === 'genre'
+    ? document.querySelector('#genreSelectButton')
+    : input;
+  field.classList.toggle('is-invalid', Boolean(errorMessage));
+  field.querySelector('small').textContent = errorMessage;
+  validationControl.setAttribute('aria-invalid', String(Boolean(errorMessage)));
+  return !errorMessage;
+}
+
+/**
+ * Valida todos os campos obrigatórios antes do envio.
+ * @returns {boolean} true quando o formulário pode ser encaminhado.
+ */
+function validateBookForm() {
+  return [...bookForm.querySelectorAll('[required]')]
+    .map(validateBookField)
+    .every(Boolean);
+}
+
+/**
+ * Mostra uma mensagem temporária de sucesso ou erro no formulário.
+ * @param {string} message Texto exibido ao usuário.
+ * @param {'error'|'success'} tone Tipo visual da mensagem.
+ */
+function setFormMessage(message, tone = 'error') {
+  const messageElement = document.querySelector('#mensagem-alerta');
+  window.clearTimeout(formMessageTimer);
+  messageElement.textContent = message;
+  messageElement.classList.remove('is-error', 'is-success');
+
+  if (!message) return;
+  messageElement.classList.add(tone === 'success' ? 'is-success' : 'is-error');
+  formMessageTimer = window.setTimeout(() => {
+    messageElement.textContent = '';
+    messageElement.classList.remove('is-error', 'is-success');
+  }, 5000);
+}
+
+/** Remove os avisos de validação após um cadastro concluído. */
+function clearBookFormErrors() {
+  bookForm.querySelectorAll('.is-invalid').forEach((field) => {
+    field.classList.remove('is-invalid');
+  });
+  bookForm.querySelectorAll('[aria-invalid]').forEach((input) => {
+    input.setAttribute('aria-invalid', 'false');
+  });
+  bookForm.querySelectorAll('label small, .form-field small').forEach((message) => {
+    message.textContent = '';
+  });
+}
+
+/** Descarta o rascunho e restaura o cadastro, incluindo o seletor de gênero. */
+function clearBookForm() {
+  bookForm.reset();
+  bookForm.querySelectorAll('input, select, textarea').forEach((control) => control.setCustomValidity(''));
+  clearBookFormErrors();
+  setFormMessage('');
+}
+
+/** Limpa o cadastro em andamento sem sair da tela. */
+function setupBookFormCancel() {
+  const clearButton = bookForm.querySelector('[data-book-clear]');
+
+  clearButton.addEventListener('click', () => {
+    clearBookForm();
+    bookForm.elements.title.focus();
+  });
+}
+
+/** Revalida um campo destacado assim que o usuário começa a corrigi-lo. */
+function setupBookFormValidation() {
+  bookForm.querySelectorAll('[required]').forEach((input) => {
+    input.addEventListener('blur', () => {
+      if (!registrationPage.hidden) validateBookField(input);
+    });
+    input.addEventListener('input', () => {
+      if (input.closest('label, .form-field').classList.contains('is-invalid')) validateBookField(input);
+    });
+  });
+}
+
+/** Configura o seletor personalizado e mantém seu valor sincronizado com o formulário. */
+function setupGenreSelect() {
+  const genreSelect = document.querySelector('#genreSelect');
+  const genreInput = document.querySelector('#genreInput');
+  const trigger = document.querySelector('#genreSelectButton');
+  const triggerText = trigger.querySelector('span');
+  const optionsPanel = document.querySelector('#genreOptions');
+  const options = [...optionsPanel.querySelectorAll('[role="option"]')];
+  const otherField = document.querySelector('#genreOtherField');
+  const otherInput = document.querySelector('#genreOtherInput');
+
+  const setOpen = (isOpen) => {
+    genreSelect.classList.toggle('is-open', isOpen);
+    optionsPanel.hidden = !isOpen;
+    trigger.setAttribute('aria-expanded', String(isOpen));
+  };
+
+  const selectGenre = (option) => {
+    options.forEach((item) => {
+      item.setAttribute('aria-selected', String(item === option));
+    });
+    genreInput.value = option.dataset.value;
+    triggerText.textContent = option.textContent;
+    genreSelect.classList.add('has-value');
+    const isOtherGenre = option.dataset.value === 'Outro';
+    otherField.hidden = !isOtherGenre;
+    otherInput.required = isOtherGenre;
+
+    if (!isOtherGenre) {
+      otherInput.value = '';
+      otherInput.closest('label').classList.remove('is-invalid');
+      otherInput.closest('label').querySelector('small').textContent = '';
+      otherInput.setAttribute('aria-invalid', 'false');
+    }
+
+    genreInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setOpen(false);
+    (isOtherGenre ? otherInput : trigger).focus();
+  };
+
+  const resetGenre = () => {
+    genreInput.value = '';
+    triggerText.textContent = 'Selecione um gênero';
+    trigger.setAttribute('aria-invalid', 'false');
+    genreSelect.classList.remove('has-value');
+    options.forEach((option) => option.setAttribute('aria-selected', 'false'));
+    otherField.hidden = true;
+    otherInput.required = false;
+    otherInput.value = '';
+    otherInput.setAttribute('aria-invalid', 'false');
+    otherInput.closest('label').classList.remove('is-invalid');
+    otherInput.closest('label').querySelector('small').textContent = '';
+    setOpen(false);
+  };
+
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpen(optionsPanel.hidden);
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    event.preventDefault();
+    setOpen(true);
+    const selectedOption = options.find((option) => option.getAttribute('aria-selected') === 'true');
+    (selectedOption || options[0]).focus();
+  });
+
+  options.forEach((option, index) => {
+    option.addEventListener('click', () => selectGenre(option));
+    option.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        trigger.focus();
+        return;
+      }
+
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const nextIndex = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? options.length - 1
+          : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+      options[nextIndex].focus();
+    });
+  });
+
+  optionsPanel.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', () => setOpen(false));
+  otherInput.addEventListener('blur', () => {
+    if (!registrationPage.hidden && otherInput.required) validateBookField(otherInput);
+  });
+  otherInput.addEventListener('input', () => {
+    if (otherInput.closest('label').classList.contains('is-invalid')) validateBookField(otherInput);
+  });
+  bookForm.addEventListener('reset', resetGenre);
+}
+
+/**
+ * Converte os valores do formulário no objeto enviado pela ponte Electron.
+ * @returns {{title:string, author:string, genre:string, quantity:number, notes:string}}
+ */
+function getBookPayload() {
+  const formData = new FormData(bookForm);
+  const genre = formData.get('genre').trim();
+  const otherGenre = formData.get('genreOther').trim();
+  return {
+    title: formData.get('title').trim(),
+    author: formData.get('author').trim(),
+    genre: genre === 'Outro' ? `Outro: ${otherGenre}` : genre,
+    quantity: Number(formData.get('quantity')),
+    notes: formData.get('notes').trim()
+  };
+}
+
+/** Retorna a data local no formato aceito por campos HTML do tipo date. */
+function getLocalDateValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Converte o valor do campo de data sem aplicar deslocamento de fuso horário. */
+function parseLocalDateValue(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Formata a data prevista sem depender do fuso horário do navegador. */
+function formatShortDatePtBr(value) {
+  if (!value) return '—';
+  const dateValue = String(value).slice(0, 10);
+  const date = parseLocalDateValue(dateValue);
+  return date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat('pt-BR').format(date)
+    : '—';
+}
+
+/** Valida os campos do empréstimo e mantém a indicação de erro acessível. */
+function validateLoanField(input) {
+  const value = input.value.trim();
+  let errorMessage = '';
+
+  if (input.required && !value) {
+    errorMessage = 'Este campo é obrigatório.';
+  } else if (input.name === 'returnDate' && value < getLocalDateValue()) {
+    errorMessage = 'A devolução não pode ser anterior à data de hoje.';
+  }
+
+  const field = input.closest('label, .form-field');
+  const validationControl = input.name === 'returnDate'
+    ? document.querySelector('#returnDateButton')
+    : input.name === 'classroom'
+      ? document.querySelector('#classroomSelectButton')
+      : input;
+  field.classList.toggle('is-invalid', Boolean(errorMessage));
+  field.querySelector('small').textContent = errorMessage;
+  validationControl.setAttribute('aria-invalid', String(Boolean(errorMessage)));
+  return !errorMessage;
+}
+
+/** Valida a estrutura completa exigida para um novo empréstimo. */
+function validateLoanForm() {
+  return [...loanForm.querySelectorAll('[required]')]
+    .map(validateLoanField)
+    .every(Boolean);
+}
+
+/** Mostra o retorno da validação sem simular uma gravação no banco. */
+function setLoanMessage(message, tone = 'error') {
+  const messageElement = document.querySelector('#loanFormMessage');
+  window.clearTimeout(loanMessageTimer);
+  messageElement.textContent = message;
+  messageElement.classList.remove('is-error', 'is-success');
+
+  if (!message) return;
+  messageElement.classList.add(tone === 'success' ? 'is-success' : 'is-error');
+  loanMessageTimer = window.setTimeout(() => {
+    messageElement.textContent = '';
+    messageElement.classList.remove('is-error', 'is-success');
+  }, 6000);
+}
+
+/**
+ * Converte os dados digitados no contrato esperado pela futura integração.
+ * O identificador do livro será preenchido quando a busca do acervo vier do banco.
+ * @returns {{bookId:number|null, bookName:string, studentName:string, classroom:string, borrowerType:string, expectedReturnDate:string}}
+ */
+function getLoanPayload() {
+  const formData = new FormData(loanForm);
+  const bookInput = loanForm.querySelector('[name="bookName"]');
+  const bookId = Number(bookInput.dataset.bookId);
+  return {
+    bookId: Number.isInteger(bookId) && bookId > 0 ? bookId : null,
+    bookName: formData.get('bookName').trim(),
+    studentName: formData.get('studentName').trim(),
+    classroom: formData.get('classroom').trim(),
+    borrowerType: formData.get('borrowerType'),
+    expectedReturnDate: formData.get('returnDate')
+  };
+}
+
+/** Configura as turmas e diferencia aluno de outros responsáveis pelo empréstimo. */
+function setupLoanBorrowerType() {
+  const classroomInput = loanForm.querySelector('[name="classroom"]');
+  const classroomField = loanForm.querySelector('.loan-classroom-field');
+  const classroomSelect = document.querySelector('#classroomSelect');
+  const classroomButton = document.querySelector('#classroomSelectButton');
+  const classroomText = classroomButton.querySelector('span');
+  const classroomOptions = document.querySelector('#classroomOptions');
+  const nameLabel = loanForm.querySelector('[data-borrower-name-label]');
+  const nameInput = loanForm.querySelector('[name="studentName"]');
+  const typeInputs = [...loanForm.querySelectorAll('[name="borrowerType"]')];
+
+  for (let grade = 1; grade <= 9; grade += 1) {
+    for (const letter of ['A', 'B', 'C', 'D']) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.setAttribute('role', 'option');
+      option.dataset.value = `${grade}º ${letter}`;
+      option.textContent = `${grade}º ${letter}`;
+      option.setAttribute('aria-selected', 'false');
+      classroomOptions.append(option);
+    }
+  }
+
+  const updateBorrowerType = ({ validate = true } = {}) => {
+    const isStudent = loanForm.elements.borrowerType.value === 'student';
+    loanForm.classList.toggle('is-non-student', !isStudent);
+    classroomField.hidden = !isStudent;
+    nameLabel.textContent = isStudent ? 'Nome do aluno' : 'Nome';
+    nameInput.placeholder = isStudent ? 'Digite o nome completo' : 'Digite o nome completo';
+
+    if (isStudent) {
+      classroomInput.value = '';
+      classroomText.textContent = 'Selecione a sala ou turma';
+      classroomSelect.classList.remove('has-value');
+    } else {
+      classroomInput.value = 'Não se aplica';
+      classroomText.textContent = 'Não se aplica';
+      classroomSelect.classList.add('has-value');
+    }
+    if (validate) classroomInput.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const setOpen = (isOpen) => {
+    classroomSelect.classList.toggle('is-open', isOpen);
+    classroomOptions.hidden = !isOpen;
+    classroomButton.setAttribute('aria-expanded', String(isOpen));
+  };
+  classroomButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpen(classroomOptions.hidden);
+  });
+  classroomOptions.addEventListener('click', (event) => {
+    const option = event.target.closest('[role="option"]');
+    if (!option) return;
+    classroomInput.value = option.dataset.value;
+    classroomText.textContent = option.textContent;
+    classroomSelect.classList.add('has-value');
+    classroomOptions.querySelectorAll('[role="option"]').forEach((item) => item.setAttribute('aria-selected', String(item === option)));
+    classroomInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setOpen(false);
+    classroomButton.focus();
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#classroomSelect')) setOpen(false);
+  });
+
+  typeInputs.forEach((input) => input.addEventListener('change', updateBorrowerType));
+  loanForm.addEventListener('reset', () => window.setTimeout(() => updateBorrowerType({ validate: false })));
+  updateBorrowerType();
+}
+
+/** Configura a seleção manual e os atalhos da data de devolução. */
+function setupLoanCalendar() {
+  const returnDate = loanForm.querySelector('[name="returnDate"]');
+  const datePicker = document.querySelector('.loan-date-picker');
+  const dateButton = document.querySelector('#returnDateButton');
+  const dateDisplay = document.querySelector('#returnDateDisplay');
+  const calendar = document.querySelector('#returnDateCalendar');
+  const calendarLabel = document.querySelector('#calendarMonthLabel');
+  const calendarDays = document.querySelector('#calendarDays');
+  const previousMonthButton = calendar.querySelector('[data-calendar-action="previous"]');
+  const dateHelp = document.querySelector('#returnDateHelp');
+  const dateShortcutButtons = [...loanForm.querySelectorAll('[data-return-days]')];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const formatLongDate = (date) => new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+
+  const setCalendarOpen = (isOpen) => {
+    calendar.hidden = !isOpen;
+    dateButton.setAttribute('aria-expanded', String(isOpen));
+    datePicker.classList.toggle('is-open', isOpen);
+    if (isOpen) replayEntranceAnimation(calendar);
+  };
+
+  const selectReturnDate = (date) => {
+    returnDate.value = getLocalDateValue(date);
+    returnDate.dispatchEvent(new Event('change', { bubbles: true }));
+    setCalendarOpen(false);
+    dateButton.focus();
+  };
+
+  const renderCalendar = () => {
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const numberOfDays = new Date(year, month + 1, 0).getDate();
+    const selectedValue = returnDate.value;
+    const monthText = new Intl.DateTimeFormat('pt-BR', {
+      month: 'long',
+      year: 'numeric'
+    }).format(calendarCursor);
+
+    calendarLabel.textContent = monthText.charAt(0).toLocaleUpperCase('pt-BR') + monthText.slice(1);
+    previousMonthButton.disabled = year === today.getFullYear() && month === today.getMonth();
+    calendarDays.replaceChildren();
+
+    for (let blank = 0; blank < firstWeekday; blank += 1) {
+      const spacer = document.createElement('span');
+      spacer.className = 'loan-calendar__blank';
+      spacer.setAttribute('aria-hidden', 'true');
+      calendarDays.append(spacer);
+    }
+
+    for (let day = 1; day <= numberOfDays; day += 1) {
+      const date = new Date(year, month, day);
+      const dateValue = getLocalDateValue(date);
+      const dayButton = document.createElement('button');
+      dayButton.type = 'button';
+      dayButton.textContent = String(day);
+      dayButton.dataset.date = dateValue;
+      dayButton.setAttribute('aria-label', formatLongDate(date));
+      dayButton.disabled = date < today;
+
+      if (dateValue === getLocalDateValue(today)) {
+        dayButton.classList.add('is-today');
+        dayButton.setAttribute('aria-current', 'date');
+      }
+
+      if (dateValue === selectedValue) {
+        dayButton.classList.add('is-selected');
+        dayButton.setAttribute('aria-pressed', 'true');
+      }
+
+      dayButton.addEventListener('click', () => selectReturnDate(date));
+      calendarDays.append(dayButton);
+    }
+  };
+
+  const updateDateShortcuts = () => {
+    const selectedDate = parseLocalDateValue(returnDate.value);
+
+    dateHelp.textContent = selectedDate
+      ? `Devolução escolhida: ${formatLongDate(selectedDate)}.`
+      : 'Use um prazo rápido ou escolha uma data no calendário.';
+    dateDisplay.textContent = selectedDate
+      ? new Intl.DateTimeFormat('pt-BR').format(selectedDate)
+      : 'Selecione uma data';
+    dateButton.classList.toggle('has-value', Boolean(selectedDate));
+    renderCalendar();
+  };
+
+  dateButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const selectedDate = parseLocalDateValue(returnDate.value) || today;
+    calendarCursor = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderCalendar();
+    setCalendarOpen(calendar.hidden);
+  });
+
+  calendar.querySelectorAll('[data-calendar-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const action = button.dataset.calendarAction;
+      if (action === 'previous') {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+        renderCalendar();
+      } else if (action === 'next') {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+        renderCalendar();
+      } else if (action === 'today') {
+        selectReturnDate(today);
+      } else {
+        setCalendarOpen(false);
+        dateButton.focus();
+      }
+    });
+  });
+
+  calendar.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.loan-date-picker')) setCalendarOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || calendar.hidden) return;
+    setCalendarOpen(false);
+    dateButton.focus();
+  });
+
+  dateShortcutButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      // Com uma data já escolhida, cada clique acrescenta um novo prazo.
+      const selectedDate = parseLocalDateValue(returnDate.value);
+      const shortcutDate = selectedDate && selectedDate >= today
+        ? new Date(selectedDate)
+        : new Date(today);
+      shortcutDate.setDate(shortcutDate.getDate() + Number(button.dataset.returnDays));
+      selectReturnDate(shortcutDate);
+    });
+  });
+
+  returnDate.addEventListener('change', updateDateShortcuts);
+}
+
+/** Prepara a validação progressiva do novo empréstimo. */
+function setupLoanForm() {
+  loanForm.querySelectorAll('[required]').forEach((input) => {
+    if (input.type !== 'hidden') input.addEventListener('blur', () => {
+      if (!loanPage.hidden) validateLoanField(input);
+    });
+    const validationEvent = input.name === 'returnDate' ? 'change' : 'input';
+    input.addEventListener(validationEvent, () => {
+      if (input.closest('label, .form-field').classList.contains('is-invalid')) validateLoanField(input);
+    });
+  });
+}
+
+/** Alterna entre o cadastro de empréstimo e o acompanhamento de devoluções. */
+function setupLoanTabs() {
+  const tabs = [...document.querySelectorAll('[data-loan-tab]')];
+  const panels = {
+    new: document.querySelector('#newLoanPanel'),
+    returns: document.querySelector('#returnsPanel')
+  };
+
+  const activateTab = (activeTab) => {
+    tabs.forEach((tab) => {
+      const isActive = tab === activeTab;
+      tab.setAttribute('aria-selected', String(isActive));
+      tab.tabIndex = isActive ? 0 : -1;
+      panels[tab.dataset.loanTab].hidden = !isActive;
+    });
+    replayEntranceAnimation(panels[activeTab.dataset.loanTab]);
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateTab(tab));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      const nextTab = tabs[(index + direction + tabs.length) % tabs.length];
+      activateTab(nextTab);
+      nextTab.focus();
+    });
+  });
+}
+
+/**
+ * Transforma o botão Sobre numa onda antes de revelar a página de créditos.
+ * @param {HTMLElement} item Botão Sobre.
+ */
+function launchAboutTransition(item) {
+  if (item.dataset.navigating === 'true') return;
+
+  const icon = item.querySelector('.sidebar-about__icon');
+  const buttonBounds = item.getBoundingClientRect();
+  const iconBounds = icon.getBoundingClientRect();
+  const originX = iconBounds.left + iconBounds.width / 2;
+  const originY = iconBounds.top + iconBounds.height / 2;
+  const waveOriginX = buttonBounds.left + buttonBounds.width / 2;
+  const waveOriginY = buttonBounds.top + buttonBounds.height / 2;
+  const travelX = window.innerWidth / 2 - originX;
+  const travelY = window.innerHeight / 2 - originY;
+  const farthestX = Math.max(waveOriginX, window.innerWidth - waveOriginX);
+  const farthestY = Math.max(waveOriginY, window.innerHeight - waveOriginY);
+  const fillRadius = Math.hypot(farthestX, farthestY) * 1.05;
+  const transition = document.createElement('span');
+
+  transition.className = 'about-nav-transition';
+  transition.setAttribute('aria-hidden', 'true');
+  transition.style.setProperty('--about-origin-x', `${originX}px`);
+  transition.style.setProperty('--about-origin-y', `${originY}px`);
+  transition.style.setProperty('--about-wave-origin-x', `${waveOriginX}px`);
+  transition.style.setProperty('--about-wave-origin-y', `${waveOriginY}px`);
+  transition.style.setProperty('--about-start-radius-x', `${buttonBounds.width / 2}px`);
+  transition.style.setProperty('--about-start-radius-y', `${buttonBounds.height / 2}px`);
+  transition.style.setProperty('--about-travel-x', `${travelX}px`);
+  transition.style.setProperty('--about-travel-y', `${travelY}px`);
+  transition.style.setProperty('--about-fill-radius', `${fillRadius}px`);
+  transition.innerHTML = `
+    <span class="about-nav-transition__surface"></span>
+    <span class="about-nav-transition__circle"></span>
+    <span class="about-nav-transition__icon"><img src="assets/icons/about.svg" alt=""></span>
+  `;
+
+  item.dataset.navigating = 'true';
+  item.setAttribute('aria-busy', 'true');
+  item.classList.add('is-launching-about');
+  document.body.appendChild(transition);
+
+  window.setTimeout(() => openView('sobre'), ABOUT_TRANSITION_REVEAL_DELAY);
+  window.setTimeout(() => {
+    transition.remove();
+    item.classList.remove('is-launching-about');
+    item.removeAttribute('aria-busy');
+    delete item.dataset.navigating;
+  }, ABOUT_TRANSITION_CLEANUP_DELAY);
+}
+
+/**
+ * Reinicia o efeito de toque no ponto exato acionado pelo mouse ou teclado.
+ * @param {HTMLElement} item Item principal do menu.
+ * @param {MouseEvent} event Evento que iniciou a navegação.
+ */
+function launchMenuRipple(item, event) {
+  const bounds = item.getBoundingClientRect();
+  const fromKeyboard = event.detail === 0;
+  const rippleX = fromKeyboard ? bounds.width / 2 : event.clientX - bounds.left;
+  const rippleY = fromKeyboard ? bounds.height / 2 : event.clientY - bounds.top;
+
+  item.style.setProperty('--menu-ripple-x', `${rippleX}px`);
+  item.style.setProperty('--menu-ripple-y', `${rippleY}px`);
+  item.classList.remove('is-rippling');
+  void item.offsetWidth;
+  item.classList.add('is-rippling');
+
+  const clearRipple = (animationEvent) => {
+    if (animationEvent.animationName !== 'menu-ripple') return;
+    item.classList.remove('is-rippling');
+    item.removeEventListener('animationend', clearRipple);
+  };
+  item.addEventListener('animationend', clearRipple);
+}
+
+/** Alterna o menu lateral entre os estados expandido e compacto. */
+function setupSidebar() {
+  const setCollapsed = (collapsed) => {
+    sidebar.classList.toggle('is-collapsed', collapsed);
+    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral');
+
+    // No modo compacto, o título nativo identifica cada ícone ao passar o mouse.
+    menuItems.forEach((item) => {
+      if (collapsed) item.title = item.dataset.page;
+      else item.removeAttribute('title');
+    });
+  };
+
+  sidebarToggle.addEventListener('click', () => {
+    setCollapsed(!sidebar.classList.contains('is-collapsed'));
+  });
+}
+
+/** Conecta botões do menu às telas disponíveis ou aos avisos de planejamento. */
+function setupNavigation() {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  menuItems.forEach((item) => {
+    item.addEventListener('click', (event) => {
+      const page = item.dataset.page;
+
+      if (page === 'Sobre') {
+        if (!aboutPage.hidden) return;
+        if (reducedMotion) return openView('sobre');
+        launchAboutTransition(item);
+        return;
+      }
+
+      if (!reducedMotion && item.classList.contains('menu__item')) {
+        launchMenuRipple(item, event);
+      }
+
+      if (page === 'Visão geral') return openView('inicio', { resetHistory: true });
+      if (page === 'Gestão') return openView('gestao');
+      if (page === 'Acervo') return openView('acervo');
+      if (page === 'Relatórios') return openView('relatorios');
+      showPending(`${page} será disponibilizado nas próximas etapas.`);
+    });
+  });
+
+  document.querySelectorAll('[data-open-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetView = button.dataset.openView;
+
+      // O atalho de cadastro exibe o livro por um instante antes da navegação.
+      if (targetView === 'cadastro') {
+        if (button.dataset.navigating === 'true') return;
+
+        button.dataset.navigating = 'true';
+        button.setAttribute('aria-busy', 'true');
+        button.classList.remove('is-book-launch');
+        void button.offsetWidth;
+        button.classList.add('is-book-launch');
+
+        window.setTimeout(() => {
+          button.classList.remove('is-book-launch');
+          delete button.dataset.navigating;
+          button.removeAttribute('aria-busy');
+          openView(targetView);
+        }, 520);
+        return;
+      }
+
+      // O atalho de empréstimos reforça visualmente a mudança de módulo.
+      if (targetView === 'emprestimos' && button.classList.contains('loan-launch-button')) {
+        if (reducedMotion) return openView(targetView);
+        if (button.dataset.navigating === 'true') return;
+
+        button.dataset.navigating = 'true';
+        button.setAttribute('aria-busy', 'true');
+        button.classList.remove('is-loan-launch');
+        void button.offsetWidth;
+        button.classList.add('is-loan-launch');
+
+        window.setTimeout(() => {
+          button.classList.remove('is-loan-launch');
+          delete button.dataset.navigating;
+          button.removeAttribute('aria-busy');
+          openView(targetView);
+        }, 680);
+        return;
+      }
+
+      if (targetView === 'acervo' && button.classList.contains('catalog-launch-button')) {
+        if (reducedMotion) return openView(targetView);
+        if (button.dataset.navigating === 'true') return;
+
+        button.dataset.navigating = 'true';
+        button.setAttribute('aria-busy', 'true');
+        button.classList.remove('is-catalog-launch');
+        void button.offsetWidth;
+        button.classList.add('is-catalog-launch');
+
+        window.setTimeout(() => {
+          button.classList.remove('is-catalog-launch');
+          delete button.dataset.navigating;
+          button.removeAttribute('aria-busy');
+          openView(targetView);
+        }, 540);
+        return;
+      }
+
+      openView(targetView);
+    });
+  });
+
+  viewBackButton.addEventListener('click', goBack);
+  document.querySelector('#brandHome').addEventListener('click', () => openView('inicio', { resetHistory: true }));
+  document.querySelector('#breadcrumbHome').addEventListener('click', () => openView('inicio', { resetHistory: true }));
+}
+
+/** Configura comportamentos dos módulos ainda fora do escopo atual. */
+function setupPendingActions() {
+  document.querySelectorAll('[data-pending]').forEach((button) => {
+    button.addEventListener('click', () => showPending(`${button.dataset.pending} está em construção.`));
+  });
+
+  document.querySelector('#helpButton').addEventListener('click', () => openView('ajuda'));
+
+  document.querySelector('#openHelpManualButton')?.addEventListener('click', async () => {
+    const response = await window.bibliotech.help.openManual();
+    if (!response?.ok) showPending(response?.message || 'Não foi possível abrir o documento de ajuda.');
+  });
+
+  document.querySelector('#openHelpWrittenManualButton')?.addEventListener('click', async () => {
+    const response = await window.bibliotech.help.openWrittenManual();
+    if (!response?.ok) showPending(response?.message || 'Não foi possível abrir o manual por escrito.');
+  });
+
+  document.querySelectorAll('.quick-action').forEach((button) => {
+    button.addEventListener('click', () => {
+      // Finaliza o efeito visual antes de abrir a tela ou mostrar o aviso.
+      const openTarget = () => {
+        delete button.dataset.navigating;
+        button.removeAttribute('aria-busy');
+        button.classList.remove('is-quick-launch');
+
+        const targetView = button.dataset.targetPage === 'Acervo'
+          ? 'acervo'
+          : button.dataset.targetPage === 'Cadastro'
+            ? 'cadastro'
+            : 'emprestimos';
+        openView(targetView);
+      };
+
+      if (button.dataset.navigating === 'true') return;
+      button.dataset.navigating = 'true';
+      button.setAttribute('aria-busy', 'true');
+      button.classList.remove('is-quick-launch');
+      void button.offsetWidth;
+      button.classList.add('is-quick-launch');
+      window.setTimeout(openTarget, 440);
+    });
+  });
+}
+/** Cria o autocomplete de livros e preserva o ID selecionado para o empréstimo. */
+function setupBookAutocomplete() {
+  const bookInput = document.querySelector('input[name="bookName"]');
+  if (!bookInput) return;
+  let searchRequestId = 0;
+
+  const resultList = document.createElement('ul');
+  resultList.className = 'book-autocomplete';
+  resultList.setAttribute('role', 'listbox');
+  resultList.setAttribute('aria-label', 'Livros disponíveis');
+  resultList.hidden = true;
+
+  bookInput.parentElement.classList.add('loan-book-autocomplete');
+  bookInput.parentElement.appendChild(resultList);
+
+  bookInput.addEventListener('input', async (e) => {
+    const requestId = ++searchRequestId;
+    const termo = e.target.value.trim();
+
+    // Uma nova digitação invalida a seleção anterior até que outro livro seja escolhido.
+    bookInput.setAttribute('data-book-id', '');
+
+    if (termo.length < 2 || !window.bibliotech?.books?.search) {
+      resultList.hidden = true;
+      return;
+    }
+
+    const response = await window.bibliotech.books.search(termo);
+    if (requestId !== searchRequestId || bookInput.value.trim() !== termo) return;
+
+    if (response.ok && response.data.length > 0) {
+      resultList.replaceChildren();
+
+      response.data.forEach(livro => {
+        const li = document.createElement('li');
+        li.className = 'book-autocomplete__option';
+        li.setAttribute('role', 'option');
+        li.textContent = `${livro.nome} (Disponível: ${livro.quantidade_livros_disponiveis})`;
+
+        li.addEventListener('click', () => {
+          bookInput.value = livro.nome;
+          bookInput.setAttribute('data-book-id', livro.id_livro);
+          resultList.hidden = true;
+        });
+
+        resultList.appendChild(li);
+      });
+
+      resultList.hidden = false;
+    } else {
+      resultList.hidden = true;
+    }
+  });
+
+  loanForm.addEventListener('reset', () => {
+    searchRequestId += 1;
+    resultList.replaceChildren();
+    resultList.hidden = true;
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target !== bookInput) {
+      resultList.hidden = true;
+    }
+  });
+}
+
+//Função que chama o back-end via Electron IPC
+async function AlteracaoDataDevolucao(idEmprestimo, novaData) {
+  try {
+    if (!window.bibliotech || !window.bibliotech.loans.updateDate) {
+      console.error("Função updateDate não encontrada na ponte IPC.");
+      alert("Erro de sistema: Funcionalidade de alteração indisponível.");
+      return { ok: false };
+    }
+
+    const resposta = await window.bibliotech.loans.updateDate(idEmprestimo, novaData);
+
+    if (resposta && resposta.ok) {
+      return resposta;
+    } else {
+      alert(`Erro: ${resposta?.message || 'Não foi possível alterar a data.'}`);
+      return resposta;
+    }
+  } catch (erro) {
+    console.error("Erro inesperado ao alterar a data de devolução:", erro);
+    alert("Ocorreu um erro inesperado ao processar a renovação.");
+    return { ok: false };
+  }
+}
+
+
+/** Configura a mini tela usada para escolher e confirmar um novo prazo. */
+function setupDeadlineExtensionModal() {
+  const modal = document.querySelector('#deadlineModal');
+  const form = document.querySelector('#deadlineForm');
+  const bookTitle = document.querySelector('#deadlineBookTitle');
+  const currentDate = document.querySelector('#deadlineCurrentDate');
+  const dateInput = document.querySelector('#deadlineDate');
+  const datePicker = modal.querySelector('.deadline-date-picker');
+  const dateButton = document.querySelector('#deadlineDateButton');
+  const dateDisplay = document.querySelector('#deadlineDateDisplay');
+  const calendar = document.querySelector('#deadlineDateCalendar');
+  const calendarLabel = document.querySelector('#deadlineCalendarMonthLabel');
+  const calendarDays = document.querySelector('#deadlineCalendarDays');
+  const previousMonthButton = calendar.querySelector('[data-deadline-calendar-action="previous"]');
+  const dateHelp = document.querySelector('#deadlineDateHelp');
+  const shortcutButtons = [...modal.querySelectorAll('[data-deadline-days]')];
+  const closeButtons = [...modal.querySelectorAll('[data-deadline-close]')];
+  let selectedLoan = null;
+  let triggerButton = null;
+  let minimumDate = null;
+  let calendarCursor = new Date();
+
+  const formatLongDate = (date) => new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+
+  const setCalendarOpen = (isOpen) => {
+    calendar.hidden = !isOpen;
+    dateButton.setAttribute('aria-expanded', String(isOpen));
+    datePicker.classList.toggle('is-open', isOpen);
+    if (isOpen) replayEntranceAnimation(calendar);
+  };
+
+  const renderCalendar = () => {
+    if (!minimumDate) return;
+
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const numberOfDays = new Date(year, month + 1, 0).getDate();
+    const selectedValue = dateInput.value;
+    const minimumMonth = new Date(minimumDate.getFullYear(), minimumDate.getMonth(), 1);
+    const visibleMonth = new Date(year, month, 1);
+    const monthText = new Intl.DateTimeFormat('pt-BR', {
+      month: 'long',
+      year: 'numeric'
+    }).format(calendarCursor);
+
+    calendarLabel.textContent = monthText.charAt(0).toLocaleUpperCase('pt-BR') + monthText.slice(1);
+    previousMonthButton.disabled = visibleMonth <= minimumMonth;
+    calendarDays.replaceChildren();
+
+    for (let blank = 0; blank < firstWeekday; blank += 1) {
+      const spacer = document.createElement('span');
+      spacer.className = 'loan-calendar__blank';
+      spacer.setAttribute('aria-hidden', 'true');
+      calendarDays.append(spacer);
+    }
+
+    for (let day = 1; day <= numberOfDays; day += 1) {
+      const date = new Date(year, month, day);
+      const dateValue = getLocalDateValue(date);
+      const dayButton = document.createElement('button');
+
+      dayButton.type = 'button';
+      dayButton.textContent = String(day);
+      dayButton.dataset.date = dateValue;
+      dayButton.setAttribute('aria-label', formatLongDate(date));
+      dayButton.disabled = date < minimumDate;
+
+      if (dateValue === getLocalDateValue(minimumDate)) {
+        dayButton.classList.add('is-minimum');
+        dayButton.setAttribute('aria-description', 'Primeira data disponível');
+      }
+
+      if (dateValue === selectedValue) {
+        dayButton.classList.add('is-selected');
+        dayButton.setAttribute('aria-pressed', 'true');
+      }
+
+      dayButton.addEventListener('click', () => selectDate(date));
+      calendarDays.append(dayButton);
+    }
+  };
+
+  const closeModal = () => {
+    setCalendarOpen(false);
+    if (modal.open) modal.close();
+  };
+
+  const selectDate = (date, selectedShortcut = null) => {
+    if (!minimumDate || date < minimumDate) return;
+
+    dateInput.value = getLocalDateValue(date);
+    dateInput.setCustomValidity('');
+    dateDisplay.textContent = formatShortDatePtBr(dateInput.value);
+    dateButton.classList.add('has-value');
+    dateButton.classList.remove('is-invalid');
+    dateHelp.textContent = `Novo prazo selecionado: ${formatShortDatePtBr(dateInput.value)}.`;
+    shortcutButtons.forEach((button) => {
+      const isSelected = button === selectedShortcut;
+      button.classList.toggle('is-selected', isSelected);
+      button.setAttribute('aria-pressed', String(isSelected));
+    });
+    renderCalendar();
+    setCalendarOpen(false);
+    dateButton.focus();
+    notificationItens();
+  };
+
+  openDeadlineModal = (loan, button) => {
+    selectedLoan = loan;
+    triggerButton = button;
+    const today = parseLocalDateValue(getLocalDateValue());
+    const loanDeadline = parseLocalDateValue(loan.expectedReturnDate) || today;
+    const extensionBase = loanDeadline > today ? loanDeadline : today;
+    const firstAvailableDate = new Date(extensionBase);
+    firstAvailableDate.setDate(firstAvailableDate.getDate() + 1);
+
+    form.reset();
+    minimumDate = firstAvailableDate;
+    calendarCursor = new Date(minimumDate.getFullYear(), minimumDate.getMonth(), 1);
+    bookTitle.textContent = loan.bookTitle || 'Livro';
+    currentDate.dateTime = loan.expectedReturnDate || '';
+    currentDate.textContent = formatShortDatePtBr(loan.expectedReturnDate);
+    dateInput.value = '';
+    dateInput.setCustomValidity('');
+    dateDisplay.textContent = 'Selecione uma nova data';
+    dateButton.classList.remove('has-value', 'is-invalid');
+    dateHelp.textContent = 'A nova data precisa ser posterior ao prazo atual.';
+    shortcutButtons.forEach((shortcut) => {
+      shortcut.classList.remove('is-selected');
+      shortcut.setAttribute('aria-pressed', 'false');
+    });
+    setCalendarOpen(false);
+    renderCalendar();
+
+    modal.showModal();
+    dateButton.focus();
+  };
+
+  shortcutButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!selectedLoan) return;
+      const today = parseLocalDateValue(getLocalDateValue());
+      const currentDeadline = parseLocalDateValue(selectedLoan.expectedReturnDate) || today;
+      const selectedDate = parseLocalDateValue(dateInput.value);
+      const shortcutBase = selectedDate && selectedDate >= minimumDate
+        ? selectedDate
+        : (currentDeadline > today ? currentDeadline : today);
+      const shortcutDate = new Date(shortcutBase);
+
+      // Cada clique continua a partir da data visível, inclusive após uma escolha manual.
+      shortcutDate.setDate(shortcutDate.getDate() + Number(button.dataset.deadlineDays));
+      selectDate(shortcutDate, button);
+    });
+  });
+
+  dateButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!minimumDate) return;
+
+    const selectedDate = parseLocalDateValue(dateInput.value) || minimumDate;
+    calendarCursor = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderCalendar();
+    setCalendarOpen(calendar.hidden);
+  });
+
+  calendar.querySelectorAll('[data-deadline-calendar-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const action = button.dataset.deadlineCalendarAction;
+
+      if (action === 'previous') {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+        renderCalendar();
+      } else if (action === 'next') {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+        renderCalendar();
+      } else if (action === 'minimum') {
+        selectDate(new Date(minimumDate));
+      } else {
+        setCalendarOpen(false);
+        dateButton.focus();
+      }
+    });
+  });
+
+  calendar.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', (event) => {
+    if (modal.open && !event.target.closest('.deadline-date-picker')) setCalendarOpen(false);
+  });
+
+  form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  
+  if (!selectedLoan || !dateInput.value) {
+    dateInput.setCustomValidity('Escolha uma nova data para continuar.');
+    dateHelp.textContent = 'Escolha uma nova data para continuar.';
+    dateButton.classList.add('is-invalid');
+    dateButton.focus();
+    return;
+  }
+
+  const idEmprestimo = selectedLoan.id || selectedLoan.id_emprestimo;
+  const novaData = dateInput.value;
+
+  try {
+    // Chama a função assíncrona que comunica com o back-end via IPC
+    await AlteracaoDataDevolucao(Number(idEmprestimo), novaData);
+
+    // Atualiza a interface local e fecha o modal após sucesso
+    selectedLoan.expectedReturnDate = novaData;
+    if (typeof notifyReturnsUpdated === 'function') {
+      notifyReturnsUpdated();
+    }
+    closeModal();
+    } catch (erro) {
+      console.error("Erro ao submeter a alteração de prazo:", erro);
+    }
+  });
+
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
+  });
+  modal.addEventListener('cancel', (event) => {
+    if (calendar.hidden) return;
+    event.preventDefault();
+    setCalendarOpen(false);
+    dateButton.focus();
+  });
+  modal.addEventListener('close', () => {
+    selectedLoan = null;
+    minimumDate = null;
+    triggerButton?.focus();
+    triggerButton = null;
+  });
+}
+
+/** Substitui a confirmação nativa pela caixa de devolução do Bibliotech. */
+function setupReturnConfirmationModal() {
+  const modal = document.querySelector('#returnModal');
+  const form = document.querySelector('#returnForm');
+  const bookTitle = document.querySelector('#returnBookTitle');
+  const readerName = document.querySelector('#returnReaderName');
+  const dueDate = document.querySelector('#returnDueDate');
+  const message = document.querySelector('#returnModalMessage');
+  const confirmButton = form.querySelector('.return-modal__confirm');
+  const confirmLabel = confirmButton.querySelector('span:last-child');
+  const closeButtons = [...modal.querySelectorAll('[data-return-close]')];
+  let selectedLoan = null;
+  let triggerButton = null;
+
+  const setBusy = (isBusy) => {
+    confirmButton.disabled = isBusy;
+    closeButtons.forEach((button) => { button.disabled = isBusy; });
+    confirmButton.setAttribute('aria-busy', String(isBusy));
+    confirmLabel.textContent = isBusy ? 'Registrando...' : 'Confirmar devolução';
+  };
+
+  const closeModal = () => {
+    if (modal.open) modal.close();
+  };
+
+  openReturnModal = (loan, button) => {
+    selectedLoan = loan;
+    triggerButton = button;
+    bookTitle.textContent = loan.bookTitle || 'Livro';
+    readerName.textContent = loan.studentName || '—';
+    dueDate.dateTime = loan.expectedReturnDate || '';
+    dueDate.textContent = formatShortDatePtBr(loan.expectedReturnDate);
+    message.textContent = '';
+    message.classList.remove('is-error');
+    setBusy(false);
+    modal.showModal();
+    confirmButton.focus();
+  };
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedLoan) return;
+
+    if (!selectedLoan.isLayoutExample && !window.bibliotech?.loans?.return) {
+      message.textContent = 'Abra o projeto pelo Electron para concluir a devolução.';
+      message.classList.add('is-error');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = selectedLoan.isLayoutExample
+        ? { ok: true }
+        : await window.bibliotech.loans.return(selectedLoan.id);
+
+      if (!result.ok) {
+        message.textContent = result.message || 'Não foi possível registrar a devolução.';
+        message.classList.add('is-error');
+        return;
+      }
+      await loadActiveLoans();
+      await loadCollectionBooks(); 
+      const returnedLoanIndex = sessionActiveLoans.findIndex((loan) => loan.id === selectedLoan.id);
+      if (returnedLoanIndex >= 0) sessionActiveLoans.splice(returnedLoanIndex, 1);
+      notifyReturnsUpdated();
+      closeModal();
+      await atualizarRelatorios();
+      await notificationItens();
+    } catch (error) {
+      console.error('Erro ao registrar a devolução:', error);
+      message.textContent = 'Ocorreu um erro inesperado ao registrar a devolução.';
+      message.classList.add('is-error');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
+  });
+  modal.addEventListener('close', () => {
+    selectedLoan = null;
+    triggerButton?.focus();
+    triggerButton = null;
+    message.textContent = '';
+  });
+}
+
+//Configuração da tabela de devolução
+function setupReturnsList() {
+  const tableBody = document.querySelector('#returnsTableBody');
+  const empty = document.querySelector('#returnsEmpty');
+  if (!tableBody || !empty) return;
+
+  const renderReturns = () => {
+    tableBody.replaceChildren();
+    empty.hidden = sessionActiveLoans.length > 0;
+
+    sessionActiveLoans.forEach((emprestimo) => {
+      const row = document.createElement('div');
+      row.className = 'returns-table__row';
+
+      const bookCell = document.createElement('span');
+      bookCell.textContent = emprestimo.bookTitle;
+
+      const studentCell = document.createElement('span');
+      studentCell.textContent = emprestimo.studentName || '—';
+
+      const borrowerTypeCell = document.createElement('span');
+      borrowerTypeCell.className = 'returns-table__borrower-type';
+      borrowerTypeCell.dataset.borrowerType = emprestimo.borrowerType;
+      borrowerTypeCell.textContent = emprestimo.borrowerType === 'student' ? 'Aluno' : 'Não é aluno';
+
+      const classroomCell = document.createElement('span');
+      classroomCell.textContent = emprestimo.classroom || '—';
+
+      const loanDateCell = document.createElement('span');
+      loanDateCell.textContent = formatShortDatePtBr(emprestimo.loanDate);
+
+      const dueDateCell = document.createElement('span');
+      dueDateCell.textContent = formatShortDatePtBr(emprestimo.expectedReturnDate);
+
+      const actionsCell = document.createElement('span');
+      actionsCell.className = 'returns-table__actions';
+
+      // Identificadores explícitos para o back-end conectar a extensão de prazo.
+      const extendDeadlineButton = document.createElement('button');
+      extendDeadlineButton.type = 'button';
+      extendDeadlineButton.className = 'returns-table__action returns-table__action--extend';
+      extendDeadlineButton.textContent = 'Estender prazo';
+      extendDeadlineButton.dataset.loanId = emprestimo.id;
+      extendDeadlineButton.dataset.currentDueDate = emprestimo.expectedReturnDate;
+      extendDeadlineButton.setAttribute('aria-haspopup', 'dialog');
+      extendDeadlineButton.addEventListener('click', () => {
+        openDeadlineModal?.(emprestimo, extendDeadlineButton);
+      });
+
+      const returnBookButton = document.createElement('button');
+      returnBookButton.type = 'button';
+      returnBookButton.className = 'returns-table__action returns-table__action--return';
+      returnBookButton.textContent = 'Registrar devolução';
+      returnBookButton.dataset.loanId = emprestimo.id;
+      returnBookButton.setAttribute('aria-haspopup', 'dialog');
+      returnBookButton.addEventListener('click', () => {
+        openReturnModal?.(emprestimo, returnBookButton);
+      });
+      actionsCell.append(extendDeadlineButton, returnBookButton);
+
+      row.append(
+        bookCell,
+        studentCell,
+        borrowerTypeCell,
+        classroomCell,
+        loanDateCell,
+        dueDateCell,
+        actionsCell
+      );
+      tableBody.appendChild(row);
+    });
+  };
+
+  renderReturnsList = renderReturns;
+  renderReturns();
+}
+
+/** Garante que a lista de devoluções seja redesenhada assim que os dados chegarem, mesmo que setupReturnsList ainda não tenha rodado. */
+function notifyReturnsUpdated() {
+  if (typeof renderReturnsList === 'function') renderReturnsList();
+}
+
+/** Busca no banco de dados (via preload.js) os empréstimos ainda não devolvidos na tabela emprestimos, para exibir na tela de devoluções. */
+async function loadActiveLoans() {
+  try {
+    const resultado = await window.bibliotech?.loans?.listActive();
+
+    if (!resultado) {
+      sessionActiveLoans.splice(0, sessionActiveLoans.length, ...RETURNS_LAYOUT_EXAMPLES);
+      notifyReturnsUpdated();
+      return;
+    }
+
+    if (resultado.ok) {
+      sessionActiveLoans.length = 0;
+      resultado.payload.forEach((emprestimo) => {
+        const classroom = String(emprestimo.turma_serie || '').trim();
+        const normalizedClassroom = classroom
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLocaleLowerCase('pt-BR');
+        const inferredBorrowerType = !classroom || normalizedClassroom === 'nao se aplica'
+          ? 'non_student'
+          : 'student';
+
+        sessionActiveLoans.push({
+          id: emprestimo.id_emprestimo,
+          bookId: emprestimo.id_livro,
+          bookTitle: emprestimo.nome_livro,
+          studentName: emprestimo.nome_solicitante,
+          // Compatível com a futura coluna do banco e com registros atuais.
+          borrowerType: emprestimo.tipo_leitor
+            || emprestimo.borrowerType
+            || inferredBorrowerType,
+          classroom,
+          loanDate: emprestimo.data_emprestimo,
+          expectedReturnDate: emprestimo.data_devolucao_prevista,
+          actualReturnDate: emprestimo.data_devolucao_efetiva,
+          status: emprestimo.status_emprestimo
+        });
+      });
+      if (sessionActiveLoans.length === 0) {
+        sessionActiveLoans.push(...RETURNS_LAYOUT_EXAMPLES);
+      }
+    } else {
+      console.error('Erro ao carregar devoluções pendentes:', resultado.message);
+    }
+  } catch (erro) {
+    console.error('Erro na comunicação ao carregar devoluções pendentes:', erro);
+  }
+
+  notifyReturnsUpdated();
+}
+  
+
+/** Valida e encaminha o livro pela API segura exposta em preload.js. */
+async function handleBookSubmit(event) {
+  event.preventDefault();
+
+  if (!validateBookForm()) {
+    setFormMessage('Preencha corretamente os campos obrigatórios destacados em vermelho.');
+    bookForm.querySelector('[aria-invalid="true"]')?.focus();
+    return;
+  }
+
+  const bookData = getBookPayload();
+
+  try {
+    // A interface usa somente a API segura disponibilizada pelo preload.
+    const resultado = await window.bibliotech?.books?.create(bookData);
+
+    if (!resultado) {
+      setFormMessage('Abra o projeto pelo Electron para concluir o cadastro.');
+      return;
+    }
+
+    if (resultado.ok) {
+      //addBookToCollectionSearch(bookData); adiciona temporariamente
+      loadCollectionBooks(bookData); //
+      setFormMessage(resultado.message, 'success');
+      bookForm.reset();
+      clearBookFormErrors();
+      await atualizarRelatorios();
+      bookForm.querySelector('[name="title"]').focus();
+    } else {
+      setFormMessage(`Erro ao cadastrar: ${resultado.message}`);
+    }
+  } catch (erro) {
+    console.error('Erro na comunicação com o backend:', erro);
+    setFormMessage('Ocorreu um erro inesperado ao tentar salvar o livro.');
+  }
+}
+/** Limpa os dados e controles visuais do novo empréstimo sem alterar os registros salvos. */
+function clearLoanForm({ focusName = false } = {}) {
+  const bookInput = loanForm.elements.bookName;
+  const returnDate = loanForm.elements.returnDate;
+  const autocomplete = loanForm.querySelector('.book-autocomplete');
+  const classroomSelect = document.querySelector('#classroomSelect');
+  const classroomOptions = document.querySelector('#classroomOptions');
+  const returnDateCalendar = document.querySelector('#returnDateCalendar');
+
+  loanForm.reset();
+  loanForm.querySelectorAll('input, select, textarea').forEach((control) => control.setCustomValidity(''));
+  bookInput.dataset.bookId = '';
+  returnDate.value = '';
+  autocomplete?.replaceChildren();
+  if (autocomplete) autocomplete.hidden = true;
+  classroomSelect.classList.remove('is-open');
+  classroomOptions.hidden = true;
+  document.querySelector('#classroomSelectButton').setAttribute('aria-expanded', 'false');
+  classroomOptions.querySelectorAll('[role="option"]').forEach((option) => {
+    option.setAttribute('aria-selected', 'false');
+  });
+  returnDateCalendar.hidden = true;
+  document.querySelector('#returnDateButton').setAttribute('aria-expanded', 'false');
+  document.querySelector('.loan-date-picker').classList.remove('is-open');
+
+  loanForm.querySelectorAll('[data-return-days]').forEach((button) => {
+    button.classList.remove('is-selected');
+    button.setAttribute('aria-pressed', 'false');
+  });
+
+  loanForm.querySelectorAll('.is-invalid').forEach((field) => field.classList.remove('is-invalid'));
+  loanForm.querySelectorAll('[aria-invalid]').forEach((control) => control.setAttribute('aria-invalid', 'false'));
+  loanForm.querySelectorAll('label > small, .form-field > small').forEach((message) => {
+    message.textContent = '';
+  });
+
+  // O campo de data é oculto; o evento também restaura o texto e o calendário visíveis.
+  returnDate.dispatchEvent(new Event('change', { bubbles: true }));
+  if (focusName) window.setTimeout(() => loanForm.elements.studentName.focus());
+}
+
+/** Limpa o rascunho sem sair da aba Novo empréstimo. */
+function setupLoanFormCancel() {
+  loanForm.querySelector('[data-loan-clear]').addEventListener('click', () => {
+    clearLoanForm();
+    setLoanMessage('');
+    loanForm.elements.studentName.focus();
+  });
+}
+
+/** Valida e encaminha o empréstimo pela API segura exposta em preload.js. */
+async function handleLoanSubmit(event) {
+  event.preventDefault();
+
+  if (!validateLoanForm()) {
+    setLoanMessage('Preencha corretamente os campos obrigatórios destacados em vermelho.');
+    loanForm.querySelector('[aria-invalid="true"]')?.focus();
+    return;
+  }
+
+  const loanData = getLoanPayload();
+  if (!loanData.bookId) {
+    setLoanMessage('Selecione um livro válido na lista de sugestões.');
+    loanForm.elements.bookName.focus();
+    return;
+  }
+
+  if (!window.bibliotech?.loans?.create) {
+    setLoanMessage('Abra o projeto pelo Electron para registrar o empréstimo.');
+    return;
+  }
+
+  try {
+    const resultado = await window.bibliotech.loans.create(loanData);
+
+    if (resultado.ok) {
+      clearLoanForm({ focusName: true });
+      setLoanMessage(resultado.message, 'success');
+      await loadActiveLoans();
+      await loadCollectionBooks();
+      await atualizarRelatorios();
+    } else {
+      setLoanMessage(`Erro ao emprestar: ${resultado.message}`);
+    }
+  } catch (erro) {
+    console.error("Erro no front-end ao emprestar:", erro);
+    setLoanMessage('Ocorreu um erro inesperado ao registrar o empréstimo.');
+  }
+}
+
+//visão Geral
+async function carregarVisaoGeral() {
+const acervoTotalVisaoGeral = document.querySelector('#metricBooksTotal');
+const acervoTotalVisaoGeralStatus = document.querySelector('#metricBooksTotalStatus');
+const disponiveiVisaoGerals = document.querySelector('#metricBooksAvailable');
+const disponiveiVisaoGeralsStatus = document.querySelector('#metricBooksAvailableStatus');
+const emprestimosVisaoGeral = document.querySelector('#metricActiveLoans');
+const emprestimosVisaoGeralStatus = document.querySelector('#metricActiveLoansStatus');
+const atrasadosVisaoGeral = document.querySelector('#metricOverdueReturns');
+const atrasadosVisaoGeralStatus = document.querySelector('#metricOverdueReturnsStatus');
+
+
+const reportStatusElements = [
+  acervoTotalVisaoGeralStatus,
+  disponiveiVisaoGeralsStatus,
+  emprestimosVisaoGeralStatus,
+  atrasadosVisaoGeralStatus
+];
+
+const exibirErroNoGeral = () => {
+  reportStatusElements.forEach((status) => {
+    if (!status) return;
+    status.hidden = false;
+    status.textContent = 'Não foi possível carregar';
+  });
+};
+
+  if (!window.bibliotech?.reports?.getDashboard) {
+    exibirErroNoGeral();
+    return { ok: false, message: 'Relatórios indisponivel' };
+  }
+
+  try {
+    const resultado = await window.bibliotech.reports.getDashboard();
+    if (resultado.ok) {
+      const payload = resultado.payload;
+      acervoTotalVisaoGeral.textContent = payload.acervoTotal.acervoTotal || 0;
+      acervoTotalVisaoGeralStatus.hidden = true;
+
+      disponiveiVisaoGerals.textContent = payload.disponiveis.disponiveis || 0;
+      disponiveiVisaoGeralsStatus.hidden = true;
+
+      emprestimosVisaoGeral.textContent = payload.emprestimos.emprestimos || 0;
+      emprestimosVisaoGeralStatus.hidden = true;  
+
+      atrasadosVisaoGeral.textContent = payload.atrasados.atrasados || 0;
+      atrasadosVisaoGeralStatus.hidden = true;
+    }else{
+      exibirErroNoGeral();
+        return{
+          ok: false,
+          message: 'Falha ao buscar dados do relatório'
+        };
+    }
+  }catch(erro){
+      console.error(erro);
+      exibirErroNoGeral();
+      return{
+        ok:false,
+        message: 'Erro interno'
+      }
+}
+}
+
+//Tela de relatorio
+const acervoTotal = document.querySelector('#reportMetricTotal');
+const acervoTotalStatus = document.querySelector('#reportMetricTotalStatus');
+
+const disponiveis = document.querySelector('#reportMetricAvailable');
+const disponiveisStatus = document.querySelector('#reportMetricAvailableStatus');
+
+const emprestimos = document.querySelector('#reportMetricLoaned');
+const emprestimosStatus = document.querySelector('#reportMetricLoanedStatus');
+
+
+const atrasados = document.querySelector('#reportMetricOverdue');
+const atrasadosStatus = document.querySelector('#reportMetricOverdueStatus');
+
+const textoRelatorioGeral = document.querySelector('#report-modal-info');
+textoRelatorioGeral.hidden = true;
+const reportStatusElements = [
+  acervoTotalStatus,
+  disponiveisStatus,
+  emprestimosStatus,
+  atrasadosStatus
+];
+
+const exibirErroNoRelatorio = () => {
+  reportStatusElements.forEach((status) => {
+    if (!status) return;
+    status.hidden = false;
+    status.textContent = 'Não foi possível carregar';
+  });
+};
+	
+async function carregarRelatorio() {
+  if (!window.bibliotech?.reports?.getDashboard) {
+    exibirErroNoRelatorio();
+    return { ok: false, message: 'Relatórios disponíveis somente no Electron' };
+  }
+
+  try {
+    const resultado = await window.bibliotech.reports.getDashboard();
+    if (resultado.ok) {
+      const payload = resultado.payload;
+      acervoTotal.textContent = payload.acervoTotal.acervoTotal || 0;
+      acervoTotalStatus.hidden = true;
+
+      disponiveis.textContent = payload.disponiveis.disponiveis || 0;
+      disponiveisStatus.hidden = true;
+
+      emprestimos.textContent = payload.emprestimos.emprestimos || 0;
+      emprestimosStatus.hidden = true;
+
+      atrasados.textContent = payload.atrasados.atrasados || 0;
+      atrasadosStatus.hidden = true;
+    }else{
+        exibirErroNoRelatorio();
+        return{
+          ok: false,
+          message: 'Falha ao buscar dados do relatório'
+        };
+    }
+  }catch(erro){
+      console.error(erro);
+      exibirErroNoRelatorio();
+      return{
+        ok:false,
+        message: 'Erro interno'
+      }
+    }
+  
+}
+
+/** Recarrega todos os blocos que dependem dos dados do relatório
+ * (dashboard, Visão geral e ranking de livros mais lidos). */
+async function atualizarRelatorios() {
+  await Promise.all([
+    carregarRelatorio(),
+    carregarVisaoGeral(),
+    livrosMaisLidosGeral(),
+    livrosMaisLidosDoMes()
+  ]);
+}
+
+async function livrosMaisLidosGeral() {
+  const livroMaisLido = document.querySelector('#most-read-book');           
+  const totalLeituras = document.querySelector('#total-readings');
+  const livrosRanking = document.querySelector('#books-ranking');
+  const tabelaRankingVazia = document.querySelector('#report-modal__empty_ranking');
+  const lista = document.querySelector('#listaLivrosMaisLidos');
+  if (!window.bibliotech?.reports?.getDashboard) {
+    return { ok: false, message: 'Relatórios indisponivel' };
+  }
+  try {
+    const resultado = await window.bibliotech.reports.getDashboard();
+    if (resultado.ok) {
+      const payload = resultado.payload;
+      livroMaisLido.textContent = payload.livroMaisLidoGeral.livro || '-';
+      totalLeituras.textContent = resultado.payload.totalLeiturasGeral || 0;
+      livrosRanking.textContent = resultado.payload.livrosNoRankingGeral || 0;
+
+      
+      const livros = payload.livrosMaisLidosGeral || [];
+      lista.replaceChildren(); 
+
+      if (livros.length === 0) { 
+        tabelaRankingVazia.hidden = false;
+
+      }else{
+        tabelaRankingVazia.hidden =  true;
+      
+
+       livros.forEach((livro, indice) => {
+        const linha = document.createElement('tr');
+        const posicao = document.createElement('td');
+        posicao.textContent = indice + 1;
+        const titulo = document.createElement('td');
+        titulo.textContent = livro.livro;
+        const autor = document.createElement('td');
+        autor.textContent = livro.autor;
+        const total = document.createElement('td');
+        total.textContent = livro.totalEmprestimos;
+
+        linha.append(posicao, titulo, autor, total);
+        lista.appendChild(linha);
+       }
+      ); 
+      }
+
+    }else{
+        tabelaRankingVazia.hidden = false;
+        return{
+          ok: false,
+          message: 'Falha ao buscar dados do relatório'
+        };
+    }
+  }catch(erro){
+      tabelaRankingVazia.hidden = false;
+      console.error(erro);
+      return{
+        ok:false,
+        message: 'Erro interno'
+      }}
+}
+
+function lerMesDoSeletor(picker) {
+  const ano = picker?.dataset.reportYear;
+  const mes = picker?.dataset.reportMonth;
+  if (!ano || !mes) return undefined;
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+async function turmaDestaque() {
+  const dialog = document.querySelector('#topClassMonthReportModal');
+  const picker = dialog?.querySelector('[data-report-date-picker]');
+  const turmaDestaque = document.querySelector('#top-class-name');
+  const livrosRetirados = document.querySelector('#top-class-books');
+  const alunosLeitores = document.querySelector('#top-class-students');
+  const tabela = document.querySelector('#report-top-class-table'); // wrapper que contém a <table>
+  const lista = document.querySelector('#listaTurmasDestaque'); // <tbody> que recebe as linhas
+  const vazio = document.querySelector('#report-top-class-empty');
+  if (!dialog || !picker || !turmaDestaque || !livrosRetirados || !alunosLeitores || !tabela || !lista || !vazio) return;
+
+  // Cada carregamento recebe um número. Se o usuário trocar de mês antes da
+  // resposta anterior chegar, a resposta antiga é descartada em vez de
+  // sobrescrever a tela com o mês errado.
+  let ultimaRequisicao = 0;
+
+  const mostrarVazio = (titulo, detalhe) => {
+    tabela.hidden = true;
+    vazio.hidden = false;
+    vazio.querySelector('strong').textContent = titulo;
+    vazio.querySelector('p').textContent = detalhe;
+  };
+
+  const zerarResumo = () => {
+    turmaDestaque.textContent = '—';
+    livrosRetirados.textContent = '—';
+    alunosLeitores.textContent = '—';
+  };
+
+  const carregar = async () => {
+    const requisicao = ++ultimaRequisicao;
+
+    if (!window.bibliotech?.reports?.getDashboard) {
+      zerarResumo();
+      mostrarVazio('Relatório indisponível', 'Não foi possível acessar o banco de dados nesta máquina.');
+      return;
+    }
+
+    try {
+      const resultado = await window.bibliotech.reports.getDashboard({ mes: lerMesDoSeletor(picker) });
+      if (requisicao !== ultimaRequisicao) return; 
+
+      if (!resultado.ok) {
+        zerarResumo();
+        mostrarVazio('Não foi possível carregar o ranking', 'Feche e abra o relatório para tentar de novo.');
+        return;
+      }
+
+      const ranking = resultado.payload.turmaDestaqueMes || [];
+      const resumo = resultado.payload.resumoTurmasMes || {};
+
+      turmaDestaque.textContent = ranking[0]?.turma ?? '—';
+      livrosRetirados.textContent = resumo.livrosRetirados ?? 0;
+      alunosLeitores.textContent = resumo.alunosLeitores ?? 0;
+
+      lista.replaceChildren();
+      ranking.forEach((item, indice) => {
+        const linha = document.createElement('tr');
+        const posicao = document.createElement('td');
+        posicao.textContent = indice + 1;
+        const turma = document.createElement('td');
+        turma.textContent = item.turma;
+        const leituras = document.createElement('td');
+        leituras.textContent = item.leituras;
+        const alunos = document.createElement('td');
+        alunos.textContent = item.alunos;
+        linha.append(posicao, turma, leituras, alunos);
+        lista.appendChild(linha);
+      });
+
+      if (ranking.length === 0) {
+        mostrarVazio('Nenhuma leitura registrada neste mês', 'Quando houver empréstimos de alunos no período, o ranking das turmas aparecerá aqui.');
+      } else {
+        tabela.hidden = false;
+        vazio.hidden = true;
+      }
+    } catch (erro) {
+      if (requisicao !== ultimaRequisicao) return;
+      console.error(erro);
+      zerarResumo();
+      mostrarVazio('Não foi possível carregar o ranking', 'Feche e abra o relatório para tentar de novo.');
+    }
+  };
+  carregar();
+}
+
+async function devolucoesDoMes() {
+  const modal = document.getElementById('returnedMonthReportModal');
+  const picker = modal?.querySelector('[data-report-date-picker]');
+  const tabela = modal?.querySelector('.report-modal__table-wrap') || modal?.querySelector('table');
+  const lista = modal?.querySelector('tbody') || modal?.querySelector('#listaDevolucoes');
+  const vazio = modal?.querySelector('.report-modal__empty') || modal?.querySelector('[id*="empty"]');
+  
+  // Captura os cartões de resumo
+  const cartoes = modal ? Array.from(modal.querySelectorAll('strong'))
+    .filter(el => !el.closest('[data-report-date-picker]') && !el.closest('.report-modal__empty')) : [];
+
+  if (!modal || !picker || !tabela || !lista) return;
+
+  let ultimaRequisicao = 0;
+
+  const zerarResumo = () => {
+    cartoes.forEach(c => c.textContent = '—');
+  };
+
+  const carregar = async () => {
+    const requisicao = ++ultimaRequisicao;
+
+    if (!window.bibliotech?.reports?.getDashboard) {
+      zerarResumo();
+      return;
+    }
+
+    try {
+      const mesSelecionado = typeof lerMesDoSeletor === 'function' ? lerMesDoSeletor(picker) : null;
+      const resultado = await window.bibliotech.reports.getDashboard(
+        mesSelecionado ? { mes: mesSelecionado } : {}
+      );
+
+      if (requisicao !== ultimaRequisicao) return;
+
+      if (!resultado.ok || !resultado.payload) {
+        zerarResumo();
+        return;
+      }
+
+      const devolucoes = resultado.payload.devolucoesMes || [];
+      const total = devolucoes.length;
+      let dentroDoPrazo = 0;
+      let aposOPrazo = 0;
+      // Cálculo das estatísticas (Total, Dentro do Prazo, Após o Prazo)
+      devolucoes.forEach(item => {
+        if (item.data_devolucao_efetiva && item.data_devolucao_prevista) {
+          const efetiva  = String(item.data_devolucao_efetiva).slice(0, 10);
+          const prevista = String(item.data_devolucao_prevista).slice(0, 10);
+          if (efetiva <= prevista) dentroDoPrazo++;
+          else aposOPrazo++;
+        } else {
+          dentroDoPrazo++;
+        }
+      });
+      // Preenche os 3 cartões de resumo
+      if (cartoes.length >= 3) {
+        cartoes[0].textContent = total;
+        cartoes[1].textContent = dentroDoPrazo;
+        cartoes[2].textContent = aposOPrazo;
+      }
+
+      lista.replaceChildren();
+      // Trata caso sem registos
+      if (total === 0) {
+        if (vazio) vazio.hidden = false;
+        tabela.hidden = true;
+        return;
+      }
+      // Preenche a tabela
+      if (vazio) vazio.hidden = true;
+      tabela.hidden = false;
+
+      devolucoes.forEach((item) => {
+        const linha = document.createElement('tr');
+        const livroNome = item.nome_livro || item.livro || '—';
+        const leitorNome = item.nome_solicitante || '—';
+        // Formatação da data (DD/MM/YYYY)
+        let dataDev = '—';
+        if (item.data_devolucao_efetiva) {
+          const p = String(item.data_devolucao_efetiva).slice(0, 10).split('-');
+          if (p.length === 3) dataDev = `${p[2]}/${p[1]}/${p[0]}`;
+        }
+        // Verificação da situação
+        const eAtrasado = item.data_devolucao_efetiva && item.data_devolucao_prevista
+          ? String(item.data_devolucao_efetiva).slice(0, 10) > String(item.data_devolucao_prevista).slice(0, 10)
+          : false;
+
+        const situacaoTexto = eAtrasado ? 'Após o prazo' : 'Dentro do prazo';
+        const situacaoClasse = eAtrasado ? 'status-atrasado' : 'status-no-prazo';
+
+        linha.innerHTML = `
+          <td>${livroNome}</td>
+          <td>${leitorNome}</td>
+          <td>${dataDev}</td>
+          <td><span class="${situacaoClasse}">${situacaoTexto}</span></td>
+        `;
+        lista.appendChild(linha);
+      });
+
+    } catch (erro) {
+      if (requisicao !== ultimaRequisicao) return;
+      console.error("Erro ao carregar devoluções do mês:", erro);
+      zerarResumo();
+    }
+  };
+  carregar();
+}
+
+async function emprestimosDoMes() {
+  const modal = document.getElementById('loanedMonthReportModal');
+  const picker = modal?.querySelector('[data-report-date-picker]');
+  const tabela = modal?.querySelector('.report-modal__table-wrap') || modal?.querySelector('table');
+  const lista = modal?.querySelector('tbody') || modal?.querySelector('#listaEmprestimos');
+  const vazio = modal?.querySelector('.report-modal__empty') || modal?.querySelector('[id*="empty"]');
+
+  // Captura os <strong> dos cartões
+  const cartoes = modal ? Array.from(modal.querySelectorAll('strong'))
+    .filter(el => !el.closest('[data-report-date-picker]') && !el.closest('.report-modal__empty')) : [];
+
+  if (!modal || !picker || !tabela || !lista) return;
+
+  let ultimaRequisicao = 0;
+
+  const zerarResumo = () => {
+    cartoes.forEach(c => c.textContent = '—');
+  };
+
+  const carregar = async () => {
+    const requisicao = ++ultimaRequisicao;
+
+    if (!window.bibliotech?.reports?.getDashboard) {
+      zerarResumo();
+      return;
+    }
+
+    try {
+      const mesSelecionado = typeof lerMesDoSeletor === 'function' ? lerMesDoSeletor(picker) : null;
+      const resultado = await window.bibliotech.reports.getDashboard(
+        mesSelecionado ? { mes: mesSelecionado } : {}
+      );
+
+      if (requisicao !== ultimaRequisicao) return;
+
+      if (!resultado.ok || !resultado.payload) {
+        zerarResumo();
+        return;
+      }
+
+      // Cálculo das estatísticas
+      const emprestimos = resultado.payload.emprestimosMes || [];
+      const total = emprestimos.length;
+      let pendentes = 0;
+      let devolvidos = 0; // "emprestado" ou "devolução pendente"
+
+      emprestimos.forEach(item => {
+        if (item.status_emprestimo === 'devolvido') devolvidos++;
+        else pendentes++;
+      });
+      // Preenche os cartões
+      if (cartoes.length >= 3) {
+        cartoes[0].textContent = total;
+        cartoes[1].textContent = pendentes;
+        cartoes[2].textContent = devolvidos;
+      }
+      
+      lista.replaceChildren();
+      // Trata o caso de lista vazia
+      if (total === 0) {
+        if (vazio) vazio.hidden = false;
+        tabela.hidden = true;
+        return;
+      }
+      // Preenche a tabela
+      if (vazio) vazio.hidden = true;
+      tabela.hidden = false;
+
+      emprestimos.forEach((item) => {
+        const linha = document.createElement('tr');
+        const livroNome = item.nome_livro || item.livro || '—';
+        const leitorNome = item.nome_solicitante || '—';
+        // Formatação da data de empréstimo (DD/MM/YYYY)
+        let dataEmp = '—';
+        if (item.data_emprestimo) {
+          const p = String(item.data_emprestimo).slice(0, 10).split('-');
+          if (p.length === 3) dataEmp = `${p[2]}/${p[1]}/${p[0]}`;
+        }
+
+        const statusTexto = item.status_emprestimo === 'devolvido' ? 'Devolvido' : 'Emprestado';
+        // Define uma classe CSS com base no status
+        const statusClasse = item.status_emprestimo === 'devolvido' ? 'status-no-prazo' : 'status-atrasado';
+
+        linha.innerHTML = `
+          <td>${livroNome}</td>
+          <td>${leitorNome}</td>
+          <td>${dataEmp}</td>
+          <td><span class="${statusClasse}">${statusTexto}</span></td>
+        `;
+        lista.appendChild(linha);
+      });
+
+    } catch (erro) {
+      if (requisicao !== ultimaRequisicao) return;
+      console.error("Erro ao carregar empréstimos do mês:", erro);
+      zerarResumo();
+    }
+  };
+  carregar();
+}
+
+async function livrosMaisLidosDoMes() {
+  const modal = document.getElementById('topBooksMonthReportModal');
+  const picker = modal?.querySelector('[data-report-date-picker]');
+  const tabela = modal?.querySelector('.report-modal__table-wrap') || modal?.querySelector('table');
+  const lista = modal?.querySelector('tbody') || modal?.querySelector('#listaLivrosMaisLidos');
+  const vazio = modal?.querySelector('.report-modal__empty') || modal?.querySelector('[id*="empty"]');
+  
+  const cartoes = modal ? Array.from(modal.querySelectorAll('strong'))
+    .filter(el => !el.closest('[data-report-date-picker]') && !el.closest('.report-modal__empty')) : [];
+
+  if (!modal || !picker || !tabela || !lista) return;
+
+  let ultimaRequisicao = 0;
+
+  const zerarResumo = () => {
+    cartoes.forEach(c => c.textContent = '—');
+  };
+
+  const carregar = async () => {
+    const requisicao = ++ultimaRequisicao;
+
+    if (!window.bibliotech?.reports?.getDashboard) {
+      zerarResumo();
+      return;
+    }
+
+    try {
+      const mesSelecionado = typeof lerMesDoSeletor === 'function' ? lerMesDoSeletor(picker) : null;
+      const resultado = await window.bibliotech.reports.getDashboard(
+        mesSelecionado ? { mes: mesSelecionado } : {}
+      );
+
+      if (requisicao !== ultimaRequisicao) return;
+
+      if (!resultado.ok || !resultado.payload) {
+        zerarResumo();
+        return;
+      }
+
+      const livros = resultado.payload.livrosMaisLidosMes || [];
+      const totalTitulos = livros.length;
+
+      // Calcula o total geral de leituras somando os empréstimos de todos os livros da lista
+      const totalLeiturasGeral = livros.reduce((acc, item) => acc + (item.totalEmprestimos || 0), 0);
+      
+      // O livro destaque
+      const livroDestaqueNome = totalTitulos > 0 ? (livros[0].livro || '—') : '—';
+
+      // Preenche os 3 cartões do topo
+      if (cartoes.length >= 3) {
+        cartoes[0].textContent = livroDestaqueNome;
+        cartoes[1].textContent = totalLeiturasGeral;
+        cartoes[2].textContent = totalTitulos;
+      }
+
+      lista.replaceChildren();
+
+      if (totalTitulos === 0) {
+        if (vazio) vazio.hidden = false;
+        tabela.hidden = true;
+        return;
+      }
+
+      if (vazio) vazio.hidden = true;
+      tabela.hidden = false;
+
+      livros.forEach((item, indice) => {
+        const linha = document.createElement('tr');
+        
+        const posicaoTd = document.createElement('td');
+        posicaoTd.textContent = indice + 1; 
+
+        const livroTd = document.createElement('td');
+        livroTd.textContent = item.livro || '—'; // Nome do livro
+
+        const autorTd = document.createElement('td');
+        autorTd.textContent = item.autor || '—'; // Nome do autor
+
+        const leiturasTd = document.createElement('td');
+        leiturasTd.textContent = item.totalEmprestimos || 0; // Total de leituras
+
+        linha.append(posicaoTd, livroTd, autorTd, leiturasTd);
+        lista.appendChild(linha);
+      });
+
+    } catch (erro) {
+      if (requisicao !== ultimaRequisicao) return;
+      console.error("Erro ao carregar livros mais lidos do mês:", erro);
+      zerarResumo();
+    }
+  };
+
+  carregar();
+}
+
+/**
+ * Extrai o conteúdo do modal (resumos e tabelas) e chama o gerador de PDF
+ * @param {string} modalId - ID do elemento <dialog> do modal
+ * @param {string} tituloRelatorio - Título que aparecerá no cabeçalho do PDF
+ */
+
+async function exportarModalParaPDF(modalId, tituloRelatorio) {
+  const modal = document.getElementById(modalId);
+  if (!modal) {
+    return;
+  }
+
+
+  // Extrai os dados dos cartões de resumo
+  let summaryHTML = '<div class="summary">';
+
+  // O período fica fora dos cartões de resumo na tela. Incluímos esse dado no
+  // PDF com um rótulo explícito para não capturar o nome interno dos ícones.
+  const periodoRelatorio = modal.querySelector('[data-report-current-month]')?.textContent?.trim();
+  if (periodoRelatorio && periodoRelatorio !== '—') {
+    summaryHTML += `
+      <div class="card">
+        <span>Período</span>
+        <strong>${periodoRelatorio}</strong>
+      </div>
+    `;
+  }
+  
+  // Procura por todos os tipos de cartões possíveis
+  const summaryItems = modal.querySelectorAll('.report-metric-card, .report-modal__summary > div');
+
+  if (summaryItems.length > 0) {
+    summaryItems.forEach(item => {
+      let label = '';
+      let valor = '—';
+
+      // Verifica qual é o tipo de cartão para procurar nas tags corretas
+      if (item.classList.contains('report-metric-card')) {
+        // Estrutura do Relatório Geral
+        label = item.querySelector('header span:first-of-type')?.textContent?.trim() || '';
+        valor = item.querySelector('div strong')?.textContent?.trim() || '—';
+      } else {
+        // Estrutura dos outros relatórios (Devoluções, Empréstimos, etc.)
+        label = item.querySelector('small, span, p')?.textContent?.trim() || '';
+        valor = item.querySelector('strong, h3')?.textContent?.trim() || '—';
+      }
+      
+      if (label || (valor !== '—' && valor !== '-')) {
+        summaryHTML += `
+          <div class="card">
+            <span>${label}</span>
+            <strong>${valor}</strong>
+          </div>
+        `;
+      }
+    });
+  }
+  summaryHTML += '</div>';
+
+  // Extrai a tabela
+
+  let tableHTML = '';
+  const tabelaNativa = modal.querySelector('table');
+  const cabecalhos = modal.querySelectorAll('.report-modal__table-head span');
+  
+  // Só constrói a tabela se existirem elementos de tabela
+  if (tabelaNativa || cabecalhos.length > 0) {
+    tableHTML += '<table>';
+    
+    if (tabelaNativa) {
+      tableHTML += tabelaNativa.innerHTML;
+    } else {
+      if (cabecalhos.length > 0) {
+        tableHTML += '<thead><tr>';
+        cabecalhos.forEach(h => { tableHTML += `<th>${h.textContent.trim()}</th>`; });
+        tableHTML += '</tr></thead>';
+      }
+      
+      tableHTML += '<tbody>';
+      const linhas = modal.querySelectorAll('.report-modal__table-row:not(.report-modal__table-head)');
+      
+      if (linhas.length === 0) {
+        tableHTML += `<tr><td colspan="${cabecalhos.length || 1}" style="text-align: center;">Nenhum registo encontrado.</td></tr>`;
+      } else {
+        linhas.forEach(linha => {
+          tableHTML += '<tr>';
+          const colunas = linha.querySelectorAll('span, td');
+          colunas.forEach(c => { tableHTML += `<td>${c.textContent.trim()}</td>`; });
+          tableHTML += '</tr>';
+        });
+      }
+      tableHTML += '</tbody>';
+    }
+    
+    tableHTML += '</table>';
+  }
+
+  // Junta os cartões e a tabela 
+  const htmlConteudo = summaryHTML + tableHTML;
+
+
+  // Envia os dados para a ponte IPC
+  try {
+    const resposta = await window.bibliotech.reports.generatePDF({
+      titulo: tituloRelatorio,
+      htmlConteudo: htmlConteudo
+    });
+
+    if (resposta && resposta.ok) {
+      console.log(`PDF gerado com sucesso em: ${resposta.filePath}`);
+    } else if (resposta && resposta.message !== 'Operação cancelada pelo utilizador.') {
+      alert(`Erro ao gerar PDF: ${resposta.message}`);
+    }
+  } catch (erro) {
+    console.error("Erro na comunicação do PDF:", erro);
+  }
+}
+
+// Botão PDF - Relatório Geral
+document.querySelector('#generalReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('generalReportModal', 'Relatório Geral');
+});
+
+// Botão PDF - Devoluções do Mês
+document.querySelector('#returnedMonthReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('returnedMonthReportModal', 'Relatório de Devoluções do Mês');
+});
+
+// Botão PDF - Turma destaque
+document.querySelector('#topClassMonthReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('topClassMonthReportModal', 'Relatório da Turma Destaque');
+});
+
+// Botão PDF - Livro mais lido do Mês
+document.querySelector('#topBooksMonthReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('topBooksMonthReportModal', 'Relatório dos Livros Mais Lidos do Mês');
+});
+
+// Botão PDF - Empréstimos do Mês
+document.querySelector('#loanedMonthReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('loanedMonthReportModal', 'Relatório de Empréstimos do Mês');
+});
+
+// Botão PDF - Ranking Histórico (Top 10 Livros)
+document.querySelector('#topBooksAllTimeReportModal .pdf-action')?.addEventListener('click', async () => {
+  await exportarModalParaPDF('topBooksAllTimeReportModal', 'Ranking Histórico - Top 10 Livros Mais Lidos');
+});
+
+/**
+ * Mantém a identidade de abertura visível por tempo suficiente para ser percebida
+ * e a remove com uma transição curta assim que a janela termina de carregar.
+ */
+function setupLoadingScreen() {
+  const loadingScreen = document.getElementById('appLoadingScreen');
+  if (!loadingScreen) return;
+
+  const startedAt = performance.now();
+  const minimumDuration = 2000;
+  let isDismissed = false;
+
+  const dismiss = () => {
+    if (isDismissed) return;
+    isDismissed = true;
+
+    const remainingTime = Math.max(0, minimumDuration - (performance.now() - startedAt));
+    window.setTimeout(() => {
+      loadingScreen.classList.add('is-leaving');
+      document.body.classList.remove('is-loading');
+      document.body.removeAttribute('aria-busy');
+      window.setTimeout(() => loadingScreen.remove(), 420);
+    }, remainingTime);
+  };
+
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(dismiss);
+  } else {
+    window.addEventListener('load', dismiss, { once: true });
+  }
+
+  // Evita prender a interface caso algum recurso opcional demore para responder.
+  window.setTimeout(dismiss, 4000);
+}
+
+/** Inicializa os eventos após o carregamento do HTML. */
+function initializeApp() {
+  setupThemeToggle(); // Alterna entre os temas claro e escuro e salva a preferência.
+  setupSidebar(); // Controla os estados expandido e compacto do menu lateral.
+  setupNavigation(); // Controla a interface
+  setupCollectionCatalog();// Configura a tabela do acervo. Renderiza os livros, atualiza os totais de livros disponíveis e emprestados e permite filtrar por gênero.
+  setupBookEditModal(); // Controla a mini tela de atualização de livros no acervo.
+  setupBookDeleteModal(); // Controla a confirmação e retira livros do acervo preservando o histórico.
+  loadCollectionBooks(); //Busca os livros através da API disponibilizada pelo preload
+  setupNotifications(); //Controla o painel de notificações. Permite abrir, fechar, fechar ao clicar fora e fechar pressionando Escape.
+  setupPendingActions(); //Configura botões de funcionalidades que ainda estão em construção, exibindo mensagens temporárias ao usuário.
+  setupGenreSelect(); //Configura o seletor personalizado de gênero no formulário de cadastro. Também controla a opção “Outro”, exibindo um campo adicional quando necessário.
+  setupClickFeedback(); //Adiciona um efeito visual rápido aos botões quando o usuário pressiona algum deles. Respeita a preferência do sistema por reduzir animações.
+  setupBookFormValidation(); //Configura a validação progressiva do formulário de livros. Os campos são validados quando perdem o foco ou quando o usuário começa a editá-los
+  setupBookFormCancel(); // Limpa o formulário de cadastro sem trocar de tela.
+  setupLoanCalendar();//Configura o calendário de data de devolução dos empréstimos. Permite escolher uma data, navegar entre meses, usar atalhos e impedir datas anteriores ao dia atual.
+  setupLoanBorrowerType(); // Preenche as turmas e controla a opção "Não é aluno".
+  setupLoanForm(); //Configura a validação e o envio do formulário de empréstimo. Depois de validar os dados, exibe uma prévia do empréstimo preenchido.
+  setupLoanFormCancel(); // Limpa o rascunho sem sair da aba Novo empréstimo.
+  setupLoanTabs(); //Controla as abas do módulo de empréstimos, alternando entre “Novo empréstimo” e “Devoluções”.
+  setupDeadlineExtensionModal(); // Controla a mini tela de extensão do prazo.
+  setupReturnConfirmationModal(); // Controla a confirmação personalizada da devolução.
+  setupReturnsList(); //Configura a renderização da lista de devoluções pendentes
+  setupReportCenter(); // Controla a central, as minitelas e a animação visual do PDF.
+  setupCalendarLayers();
+  replayEntranceAnimation(overviewPage);
+  loadActiveLoans(); //Busca na tabela emprestimos os empréstimos ainda não devolvidos, através da API disponibilizada pelo preload
+  setupBookAutocomplete();
+  notificationItens();
+  carregarRelatorio();
+  livrosMaisLidosGeral();
+  livrosMaisLidosDoMes();
+  turmaDestaque();
+  carregarVisaoGeral();
+  devolucoesDoMes();
+  emprestimosDoMes();
+  exportarModalParaPDF();
+  bookForm.addEventListener('submit', handleBookSubmit);
+  loanForm.addEventListener('submit', handleLoanSubmit);
+}
+
+setupLoadingScreen();
+initializeApp();

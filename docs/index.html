@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bibliotech</title>
+    <link rel="icon" type="image/png" href="assets/bibliotech-logo.png?v=3">
+    <link rel="stylesheet" href="style.css/style.css?v=12">
+    <link rel="stylesheet" href="preview.css">
+</head>
+<body class="is-loading" aria-busy="true">
+    <div class="app-loading-screen" id="appLoadingScreen" role="status" aria-label="Carregando o Bibliotech">
+        <img class="app-loading-screen__logo" src="assets/bibliotech-loading-logo.png" alt="Bibliotech">
+        <div class="app-loading-screen__dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <span class="sr-only">Carregando o Bibliotech</span>
+    </div>
+
+    <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+        <button class="brand" id="brandHome" type="button" aria-label="Voltar à visão geral">
+            <img class="brand__icon" src="assets/bibliotech-logo.png" alt="">
+            <img class="brand__wordmark" src="assets/bibliotech-brand.png" alt="Bibliotech">
+        </button>
+
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Recolher menu lateral" aria-controls="sidebar" aria-expanded="true">
+            <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+        </button>
+
+        <div class="sidebar__content">
+            <p class="sidebar__label">Menu principal</p>
+
+            <nav class="menu">
+                <button class="menu__item is-active" type="button" data-page="Visão geral" aria-label="Visão geral" aria-current="page">
+                    <img class="menu__icon" src="assets/icons/overview.svg" alt="" aria-hidden="true">
+                    <span>Visão geral</span>
+                </button>
+                <button class="menu__item" type="button" data-page="Gestão" aria-label="Gestão">
+                    <img class="menu__icon" src="assets/icons/management.svg" alt="" aria-hidden="true">
+                    <span>Gestão</span>
+                </button>
+
+                <button class="menu__item" type="button" data-page="Acervo" aria-label="Acervo">
+                    <img class="menu__icon" src="assets/icons/collection.svg" alt="" aria-hidden="true">
+                    <span>Acervo</span>
+                </button>
+
+                <button class="menu__item" type="button" data-page="Relatórios" aria-label="Relatórios">
+                    <img class="menu__icon" src="assets/icons/reports.svg" alt="" aria-hidden="true">
+                    <span>Relatórios</span>
+                </button>
+
+            </nav>
+        </div>
+
+        <button class="sidebar-about" type="button" data-page="Sobre" aria-label="Abrir informações sobre o Bibliotech">
+            <span class="sidebar-about__icon" aria-hidden="true">
+                <img src="assets/icons/about.svg" alt="">
+            </span>
+            <span class="sidebar-about__text">
+                <strong>Sobre</strong>
+                <small>Conheça o projeto</small>
+            </span>
+            <span class="sidebar-about__arrow" aria-hidden="true">›</span>
+        </button>
+
+    </aside>
+
+    <div class="app">
+        <header class="topbar">
+            <button class="view-back-button" id="viewBackButton" type="button" aria-label="Voltar para a tela anterior" hidden>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m15 6-6 6 6 6M9 12h10"/>
+                </svg>
+            </button>
+
+            <nav class="breadcrumb" aria-label="Navegação estrutural">
+                <button class="breadcrumb__home" id="breadcrumbHome" type="button">Bibliotech</button>
+                <span class="breadcrumb__separator" aria-hidden="true">/</span>
+                <strong id="breadcrumbCurrent" aria-current="page">Visão geral</strong>
+            </nav>
+
+            <div class="topbar-actions">
+                <button class="theme-toggle" id="themeToggle" type="button" aria-label="Ativar modo escuro" aria-pressed="false" title="Ativar modo escuro">
+                    <span class="theme-toggle__track" aria-hidden="true">
+                        <svg class="theme-toggle__icon theme-toggle__icon--sun" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="3.5"/>
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/>
+                        </svg>
+                        <svg class="theme-toggle__icon theme-toggle__icon--moon" viewBox="0 0 24 24" fill="none">
+                            <path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"/>
+                        </svg>
+                        <span class="theme-toggle__thumb"></span>
+                    </span>
+                </button>
+
+                <button class="help-button" id="helpButton" type="button">Ajuda</button>
+
+                <div class="notification-area">
+                    <button class="notification" id="notificationButton" type="button" aria-label="Abrir notificações" aria-controls="notificationPanel" aria-expanded="false" aria-haspopup="true">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M7.5 10.5a4.5 4.5 0 0 1 9 0c0 5 2 5.5 2 5.5h-13s2-.5 2-5.5Z"/>
+                            <path d="M10 19h4"/>
+                        </svg>
+                        <span class="notification__dot" id="notification__dot" hidden></span>
+                    </button>
+
+                    <section class="notification-panel" id="notificationPanel" aria-labelledby="notificationPanelTitle" hidden>
+                        <header class="notification-panel__header">
+                            <div>
+                                <span class="notification-panel__eyebrow">Central de avisos</span>
+                                <div class="notification-panel__title-row">
+                                    <h2 id="notificationPanelTitle">Notificações</h2>
+                                    <span class="notification-panel__count" id="notificationCount" aria-label="0 notificações" hidden>0</span>
+                                </div>
+                            </div>
+                            <button class="notification-panel__close material-symbols-outlined" id="notificationCloseButton" type="button" aria-label="Fechar notificações">close</button>
+                        </header>
+                        <div class="notification-panel__empty" id="notification-panel__empty">
+                            <span class="notification-panel__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M7.5 10.5a4.5 4.5 0 0 1 9 0c0 5 2 5.5 2 5.5h-13s2-.5 2-5.5Z"/>
+                                    <path d="M10 19h4"/>
+                                </svg>
+                            </span>
+                            <strong id="notificationEmptyTitle">Nenhuma notificação</strong>
+                            <p id="notificationEmptyDescription">Quando houver novidades, elas aparecerão aqui.</p>
+                        </div>
+                        <div class="notification-panel__info" id="notification-panel__info" hidden>
+                            <div class="notification-panel__list" id="notification-panel-list" role="list" aria-label="Avisos de devolução"></div>
+                            <footer class="notification-panel__footer">
+                                <span id="notificationSummary">Avisos pendentes</span>
+                                <button id="clearNotificationsButton" type="button">Limpar</button>
+                            </footer>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </header>
+
+        <main class="page-content" id="pageContent" tabindex="-1">
+            <section class="page-intro" id="overviewPage" aria-labelledby="pageTitle">
+                <div class="page-intro__top">
+                    <div>
+                        <p class="page-intro__eyebrow" id="pageEyebrow">Painel da sala de leitura</p>
+                        <h1 id="pageTitle">Visão geral</h1>
+                    </div>
+
+                </div>
+
+                <div class="stats-grid" aria-label="Resumo da biblioteca">
+                    <article class="stat-card">
+                        <div class="stat-card__header">
+                            <p>Livros no acervo</p>
+                            <span class="stat-card__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M4.5 5.5c2.4-.9 4.7-.5 7.5 1v12c-2.8-1.5-5.1-1.9-7.5-1V5.5Z"/>
+                                    <path d="M19.5 5.5c-2.4-.9-4.7-.5-7.5 1v12c2.8-1.5 5.1-1.9 7.5-1V5.5Z"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <strong id="metricBooksTotal" aria-live="polite">—</strong>
+                        <small id="metricBooksTotalStatus">Aguardando dados do acervo</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-card__header">
+                            <p>Disponíveis agora</p>
+                            <span class="stat-card__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="5" y="4" width="14" height="16" rx="2"/>
+                                    <path d="m9 12 2 2 4-5"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <strong id="metricBooksAvailable" aria-live="polite">—</strong>
+                        <small id="metricBooksAvailableStatus">Disponibilidade ainda não carregada</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-card__header">
+                            <p>Empréstimos ativos</p>
+                            <span class="stat-card__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 8h12M6 8l3-3M6 8l3 3M18 16H6m12 0-3-3m3 3-3 3"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <strong id="metricActiveLoans" aria-live="polite">—</strong>
+                        <small id="metricActiveLoansStatus">Movimentações ainda não carregadas</small>
+                    </article>
+
+                    <article class="stat-card stat-card--warning">
+                        <div class="stat-card__header">
+                            <p>Devoluções atrasadas</p>
+                            <span class="stat-card__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="8"/>
+                                    <path d="M12 8v5l3 2"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <strong id="metricOverdueReturns" aria-live="polite">—</strong>
+                        <small id="metricOverdueReturnsStatus">Atrasos ainda não calculados</small>
+                    </article>
+                </div>
+
+                <div class="overview-lower">
+                    <section class="quick-access" aria-labelledby="quickAccessTitle">
+                        <header class="panel-heading">
+                            <div>
+                                <h2 id="quickAccessTitle">Acesso rápido</h2>
+                                <p>Principais ações</p>
+                            </div>
+                        </header>
+
+                        <div class="quick-access__list">
+                            <button class="quick-action" type="button" data-target-page="Empréstimos">
+                                <span class="quick-action__icon quick-action__icon--loan" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none"><path d="M7 17 17 7M10 7h7v7"/></svg>
+                                </span>
+                                <span class="quick-action__text">
+                                    <strong>Novo empréstimo</strong>
+                                    <small>Registrar uma retirada</small>
+                                </span>
+                                <span class="quick-action__arrow" aria-hidden="true">›</span>
+                            </button>
+
+                            <button class="quick-action" type="button" data-target-page="Cadastro">
+                                <span class="quick-action__icon quick-action__icon--book" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14"/></svg>
+                                </span>
+                                <span class="quick-action__text">
+                                    <strong>Cadastrar livro</strong>
+                                    <small>Adicionar ao acervo</small>
+                                </span>
+                                <span class="quick-action__arrow" aria-hidden="true">›</span>
+                            </button>
+
+                            <button class="quick-action" type="button" data-target-page="Acervo">
+                                <span class="quick-action__icon quick-action__icon--collection" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none"><path d="M5 5.5h10.5A2.5 2.5 0 0 1 18 8v11H7a2 2 0 0 1-2-2V5.5Zm0 0A2.5 2.5 0 0 1 7.5 8V19M9 10h6M9 13h5"/></svg>
+                                </span>
+                                <span class="quick-action__text">
+                                    <strong>Consultar acervo</strong>
+                                    <small>Ver livros cadastrados</small>
+                                </span>
+                                <span class="quick-action__arrow" aria-hidden="true">›</span>
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
+            <!-- Gestão funciona como ponto de entrada para as rotinas operacionais. -->
+            <section class="page-intro management-page" id="managementPage" hidden aria-labelledby="managementPageTitle">
+                <p class="page-intro__eyebrow">Área operacional</p>
+                <h1 id="managementPageTitle">Gestão</h1>
+                <p class="page-intro__description">Escolha a rotina que deseja acessar.</p>
+
+                <p class="management-section-label">Acessos de gestão</p>
+                <div class="management-options management-options--compact">
+                    <article>
+                        <span aria-hidden="true">＋</span>
+                        <div>
+                            <p>GESTÃO DO CATÁLOGO</p>
+                            <h2>Cadastro de livros</h2>
+                            <small>Adicione e organize os dados do acervo.</small>
+                        </div>
+                        <button class="register-book-button" type="button" data-open-view="cadastro">
+                            <span class="register-book-button__label">Cadastrar livro</span>
+                            <img class="register-book-button__icon" src="assets/icons/register-book.svg" alt="" aria-hidden="true">
+                        </button>
+                    </article>
+
+                    <article>
+                        <span aria-hidden="true">▤</span>
+                        <div>
+                            <p>CONSULTA DO CATÁLOGO</p>
+                            <h2>Catálogo de livros</h2>
+                            <small>Busque, filtre e acompanhe os livros do acervo.</small>
+                        </div>
+                        <button class="catalog-launch-button" type="button" data-open-view="acervo">
+                            <span class="catalog-launch-button__label">Abrir acervo</span>
+                            <span class="material-symbols-outlined catalog-launch-button__icon" aria-hidden="true">library_books</span>
+                        </button>
+                    </article>
+
+                    <article>
+                        <span class="material-symbols-outlined" aria-hidden="true">sync_alt</span>
+                        <div>
+                            <p>GESTÃO DE MOVIMENTAÇÕES</p>
+                            <h2>Empréstimos</h2>
+                            <small>Registre retiradas, prazos e devoluções.</small>
+                        </div>
+                        <button class="loan-launch-button" type="button" data-open-view="emprestimos">
+                            <span class="loan-launch-button__label">Abrir empréstimos</span>
+                            <span class="material-symbols-outlined loan-launch-button__icon" aria-hidden="true">sync_alt</span>
+                        </button>
+                    </article>
+                </div>
+            </section>
+
+            <!-- O fluxo mantém os mesmos campos e seletores previstos para a integração. -->
+            <section class="page-intro loan-page" id="loanPage" hidden aria-labelledby="loanPageTitle">
+                <p class="page-intro__eyebrow">Gestão de movimentações</p>
+                <h1 id="loanPageTitle">Empréstimos</h1>
+                <p class="page-intro__description">Registre retiradas e acompanhe os livros que precisam ser devolvidos.</p>
+
+                <div class="loan-tabs" role="tablist" aria-label="Áreas de empréstimos">
+                    <button id="newLoanTab" type="button" role="tab" aria-selected="true" aria-controls="newLoanPanel" data-loan-tab="new">
+                        Novo empréstimo
+                    </button>
+                    <button id="returnsTab" type="button" role="tab" aria-selected="false" aria-controls="returnsPanel" data-loan-tab="returns" tabindex="-1">
+                        Devoluções
+                    </button>
+                </div>
+
+                <div class="loan-layout" id="newLoanPanel" role="tabpanel" aria-labelledby="newLoanTab">
+                    <form id="loanForm" class="book-form loan-form" novalidate>
+                        <header class="loan-form__header wide">
+                            <span class="loan-form__icon" aria-hidden="true">↔</span>
+                            <span>
+                                <strong>Dados do empréstimo</strong>
+                                <small>Todos os campos abaixo são obrigatórios.</small>
+                            </span>
+                        </header>
+
+                        <fieldset class="loan-borrower-type wide">
+                            <legend>Quem vai levar o livro?</legend>
+                            <label>
+                                <input type="radio" name="borrowerType" value="student" checked>
+                                <span>Aluno</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="borrowerType" value="non_student">
+                                <span>Não é aluno</span>
+                            </label>
+                        </fieldset>
+
+                        <label class="wide loan-borrower-name-field">
+                            <span class="field-label">
+                                <span data-borrower-name-label>Nome do aluno</span>
+                                <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                            </span>
+                            <input name="studentName" autocomplete="name" required maxlength="120" placeholder="Digite o nome completo">
+                            <small></small>
+                        </label>
+
+                        <div class="form-field loan-classroom-field">
+                            <span class="field-label">
+                                Sala ou turma
+                                <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                            </span>
+                            <input id="classroomInput" name="classroom" type="hidden" required>
+                            <div class="genre-select loan-classroom-select" id="classroomSelect">
+                                <button class="genre-select__trigger" id="classroomSelectButton" type="button" aria-haspopup="listbox" aria-controls="classroomOptions" aria-expanded="false">
+                                    <span>Selecione a sala ou turma</span>
+                                    <span class="genre-select__arrow" aria-hidden="true"></span>
+                                </button>
+                                <div class="genre-select__options" id="classroomOptions" role="listbox" aria-label="Sala ou turma" hidden></div>
+                            </div>
+                            <small></small>
+                        </div>
+
+                        <div class="form-field loan-date-field">
+                            <label class="field-label" for="returnDate">
+                                Data de devolução
+                                <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                            </label>
+                            <div class="loan-date-picker">
+                                <button class="loan-date-picker__trigger" id="returnDateButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="returnDateCalendar" aria-describedby="returnDateHelp">
+                                    <span id="returnDateDisplay">Selecione uma data</span>
+                                    <span class="loan-date-picker__icon" aria-hidden="true">▦</span>
+                                </button>
+                                <input id="returnDate" name="returnDate" type="hidden" required>
+
+                                <section class="loan-calendar" id="returnDateCalendar" role="dialog" aria-label="Escolher data de devolução" hidden>
+                                    <header class="loan-calendar__header">
+                                        <button type="button" data-calendar-action="previous" aria-label="Mês anterior">‹</button>
+                                        <strong id="calendarMonthLabel" aria-live="polite"></strong>
+                                        <button type="button" data-calendar-action="next" aria-label="Próximo mês">›</button>
+                                    </header>
+                                    <div class="loan-calendar__weekdays" aria-hidden="true">
+                                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                                    </div>
+                                    <div class="loan-calendar__days" id="calendarDays"></div>
+                                    <footer class="loan-calendar__footer">
+                                        <button type="button" data-calendar-action="today">Hoje</button>
+                                        <button type="button" data-calendar-action="close">Fechar</button>
+                                    </footer>
+                                </section>
+                            </div>
+                            <div class="loan-date-shortcuts" role="group" aria-label="Atalhos para data de devolução">
+                                <span>Prazo rápido:</span>
+                                <button type="button" data-return-days="7" aria-label="Adicionar 7 dias à data de devolução">+7 dias</button>
+                                <button type="button" data-return-days="14" aria-label="Adicionar 14 dias à data de devolução">+14 dias</button>
+                                <button type="button" data-return-days="30" aria-label="Adicionar 30 dias à data de devolução">+30 dias</button>
+                            </div>
+                            <span class="loan-date-help" id="returnDateHelp">Use um prazo rápido ou escolha uma data no calendário.</span>
+                            <small></small>
+                        </div>
+
+                        <label class="wide loan-book-field">
+                            <span class="field-label">
+                                Nome do livro
+                                <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                            </span>
+                            <input name="bookName" required maxlength="160" data-book-id="" placeholder="Digite o título do livro">
+                            <small></small>
+                        </label>
+
+                        <p class="form-message wide" id="loanFormMessage" role="status" aria-live="polite"></p>
+
+                        <div class="form-actions wide">
+                            <button type="button" data-loan-clear>Limpar</button>
+                            <button class="primary-action loan-submit-button" type="submit">
+                                <span>Registrar empréstimo</span>
+                                <span aria-hidden="true">→</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <aside class="loan-guidance" aria-label="Orientações do empréstimo">
+                        <span class="loan-guidance__eyebrow">Fluxo preparado</span>
+                        <h2>Antes de registrar</h2>
+                        <ul>
+                            <li>Confirme o nome e a sala do aluno.</li>
+                            <li>Confira o título do livro selecionado.</li>
+                            <li>Defina uma devolução a partir de hoje.</li>
+                        </ul>
+                    </aside>
+                </div>
+
+                <section class="returns-panel" id="returnsPanel" role="tabpanel" aria-labelledby="returnsTab" hidden>
+                    <header class="returns-panel__header">
+                        <div>
+                            <p>ACOMPANHAMENTO</p>
+                            <h2>Devoluções pendentes</h2>
+                            <small>Os empréstimos ativos ficarão reunidos aqui para registrar o retorno.</small>
+                        </div>
+                    </header>
+
+                    <div class="returns-table" aria-label="Lista de devoluções pendentes">
+                        <div class="returns-table__header" aria-hidden="true">
+                            <span>Livro</span>
+                            <span>Leitor</span>
+                            <span>Solicitante</span>
+                            <span>Turma</span>
+                            <span>Emprestado em</span>
+                            <span>Prazo</span>
+                            <span>Ação</span>
+                        </div>
+                        <div class="returns-table__body" id="returnsTableBody"></div>
+                        <div class="data-empty-state" id="returnsEmpty" role="status">
+                            <span class="data-empty-state__icon" aria-hidden="true">✓</span>
+                            <strong>Nenhuma devolução carregada</strong>
+                            <p>Os empréstimos ativos aparecerão nesta lista quando estiverem disponíveis.</p>
+                        </div>
+                    </div>
+                </section>
+            </section>
+
+            <section class="page-intro catalog-page" id="collectionPage" hidden aria-labelledby="catalogPageTitle">
+                <div class="page-intro__top">
+                    <div>
+                        <p class="page-intro__eyebrow">Gestão do catálogo</p>
+                        <h1 id="catalogPageTitle">Acervo</h1>
+                        <p class="page-intro__description">Consulte os livros cadastrados e acompanhe a disponibilidade de cada exemplar.</p>
+                    </div>
+                    <button class="primary-action register-book-button catalog-register-button" type="button" data-open-view="cadastro">
+                        <span class="register-book-button__label">Cadastrar livro</span>
+                        <img class="register-book-button__icon" src="assets/icons/register-book.svg" alt="" aria-hidden="true">
+                    </button>
+                </div>
+
+                <section class="catalog-summary" aria-label="Resumo do acervo">
+                    <article>
+                        <span class="catalog-summary__icon" aria-hidden="true">▤</span>
+                        <div><small>Exemplares cadastrados</small><strong id="catalogTotal">0</strong></div>
+                    </article>
+                    <article>
+                        <span class="catalog-summary__icon catalog-summary__icon--available" aria-hidden="true">✓</span>
+                        <div><small>Disponíveis agora</small><strong id="catalogAvailable">0</strong></div>
+                    </article>
+                    <article>
+                        <span class="catalog-summary__icon catalog-summary__icon--loaned" aria-hidden="true">↔</span>
+                        <div><small>Em empréstimo</small><strong id="catalogLoaned">0</strong></div>
+                    </article>
+                </section>
+
+                <section class="catalog-list" aria-labelledby="catalogListTitle">
+                    <header class="catalog-list__header">
+                        <div>
+                            <h2 id="catalogListTitle">Catálogo de livros</h2>
+                            <p id="catalogListDescription">Os livros cadastrados nesta sessão aparecerão aqui.</p>
+                        </div>
+                        <span class="catalog-list__count" id="catalogCount">0 livros</span>
+                    </header>
+
+                    <div class="catalog-toolbar">
+                        <label class="catalog-search" for="catalogSearchInput">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+                            <input id="catalogSearchInput" type="search" placeholder="Buscar por título ou autor" autocomplete="off">
+                        </label>
+                        <div class="catalog-select" id="catalogGenreSelect">
+                            <button class="catalog-select__trigger" id="catalogGenreFilter" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="catalogGenreOptions">
+                                <span>Todos os gêneros</span><i class="catalog-select__arrow" aria-hidden="true"></i>
+                            </button>
+                            <div class="catalog-select__options" id="catalogGenreOptions" role="listbox" aria-label="Filtrar por gênero" hidden>
+                                <button type="button" role="option" aria-selected="true" data-catalog-genre="">Todos os gêneros</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Ação">Ação</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Aventura">Aventura</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Autoajuda">Autoajuda</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Biografia e autobiografia">Biografia e autobiografia</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Ciência">Ciência</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Científico e acadêmico">Científico e acadêmico</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Clássico">Clássico</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Comédia">Comédia</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Conto">Conto</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Crônica">Crônica</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Didático">Didático</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Drama">Drama</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Fantasia">Fantasia</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Ficção científica">Ficção científica</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Filosofia">Filosofia</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="História">História</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="História em quadrinhos e mangá">História em quadrinhos e mangá</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Infantil">Infantil</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Juvenil">Juvenil</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Mistério">Mistério</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Poesia">Poesia</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Policial">Policial</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Religião e espiritualidade">Religião e espiritualidade</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Romance">Romance</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Suspense">Suspense</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Terror">Terror</button>
+                                <button type="button" role="option" aria-selected="false" data-catalog-genre="Outro">Outro</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="catalog-table-wrap">
+                        <table class="catalog-table">
+                            <thead><tr><th>Livro</th><th>Autor</th><th>Gênero</th><th>Disponibilidade</th><th>Ações</th></tr></thead>
+                            <tbody id="catalogTableBody"></tbody>
+                        </table>
+                        <section class="catalog-empty" id="catalogEmpty" aria-live="polite">
+                            <span class="catalog-empty__icon" aria-hidden="true">▤</span>
+                            <strong>Nenhum livro cadastrado</strong>
+                            <p>Quando um livro for cadastrado, ele aparecerá nesta lista.</p>
+                            <button type="button" data-open-view="cadastro">Cadastrar primeiro livro</button>
+                        </section>
+                    </div>
+                </section>
+            </section>
+
+            <!-- Central de acesso aos relatórios do Sprint 4. -->
+            <section class="page-intro reports-page" id="reportsPage" hidden aria-labelledby="reportsPageTitle">
+                <header class="reports-header">
+                    <div>
+                        <p class="page-intro__eyebrow">Análise da biblioteca</p>
+                        <h1 id="reportsPageTitle">Relatórios</h1>
+                        <p class="page-intro__description">
+                            Escolha uma visão para consultar os dados da biblioteca e preparar o relatório.
+                        </p>
+                    </div>
+                    <span class="reports-header__badge"><span class="material-symbols-outlined" aria-hidden="true">insights</span> Central de relatórios</span>
+                </header>
+
+                <section class="report-launcher-grid" aria-label="Tipos de relatório">
+                    <button class="report-launcher report-launcher--featured" type="button" data-report-open="general">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">analytics</span>
+                        <span class="report-launcher__content"><small>Visão completa</small><strong>Relatório geral</strong><span>Reúna os principais indicadores da biblioteca.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="report-launcher report-launcher--loaned" type="button" data-report-open="loanedMonth">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">output</span>
+                        <span class="report-launcher__content"><small>Movimentação mensal</small><strong>Livros emprestados no mês</strong><span>Acompanhe os empréstimos realizados no período.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="report-launcher" type="button" data-report-open="topClassMonth">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">school</span>
+                        <span class="report-launcher__content"><small>Engajamento</small><strong>Turma destaque em leitura</strong><span>Compare o engajamento das turmas.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="report-launcher" type="button" data-report-open="topBooksMonth">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">auto_stories</span>
+                        <span class="report-launcher__content"><small>Destaques</small><strong>Livros mais lidos do mês</strong><span>Veja os títulos que se destacaram no período.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="report-launcher" type="button" data-report-open="topBooksAllTime">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">workspace_premium</span>
+                        <span class="report-launcher__content"><small>Histórico</small><strong>Livros mais lidos de todos</strong><span>Consulte o ranking histórico do acervo.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="report-launcher report-launcher--returned" type="button" data-report-open="returnedMonth">
+                        <span class="report-launcher__icon material-symbols-outlined" aria-hidden="true">assignment_return</span>
+                        <span class="report-launcher__content"><small>Movimentação mensal</small><strong>Livros devolvidos no mês</strong><span>Consulte as devoluções registradas no período.</span></span>
+                        <span class="report-launcher__arrow material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </section>
+            </section>
+
+            <!-- Formulário alinhado aos atributos previstos no banco SQLite. -->
+            <section class="page-intro registration-page" id="registrationPage" hidden>
+                <p class="page-intro__eyebrow">Gestão do catálogo</p>
+                <h1>Cadastro de livro</h1>
+                <p class="page-intro__description">Preencha as informações do exemplar para o acervo.</p>
+                <form id="bookForm" class="book-form" novalidate>
+                    <label class="wide">
+                        <span class="field-label">
+                            Título do livro
+                            <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                        </span>
+                        <input name="title" required maxlength="160">
+                        <small></small>
+                    </label>
+
+                    <label>
+                        <span class="field-label">
+                            Autor
+                            <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                        </span>
+                        <input name="author" required maxlength="120">
+                        <small></small>
+                    </label>
+
+                    <div class="form-field">
+                        <span class="field-label">
+                            Gênero
+                            <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                        </span>
+                        <input id="genreInput" name="genre" type="hidden" required>
+                        <div class="genre-select" id="genreSelect">
+                            <button class="genre-select__trigger" id="genreSelectButton" type="button" aria-haspopup="listbox" aria-controls="genreOptions" aria-expanded="false">
+                                <span>Selecione um gênero</span>
+                                <span class="genre-select__arrow" aria-hidden="true"></span>
+                            </button>
+                            <div class="genre-select__options" id="genreOptions" role="listbox" aria-label="Gêneros de livros" hidden>
+                                <button type="button" role="option" data-value="Ação" aria-selected="false">Ação</button>
+                                <button type="button" role="option" data-value="Aventura" aria-selected="false">Aventura</button>
+                                <button type="button" role="option" data-value="Autoajuda" aria-selected="false">Autoajuda</button>
+                                <button type="button" role="option" data-value="Biografia e autobiografia" aria-selected="false">Biografia e autobiografia</button>
+                                <button type="button" role="option" data-value="Ciência" aria-selected="false">Ciência</button>
+                                <button type="button" role="option" data-value="Científico e acadêmico" aria-selected="false">Científico e acadêmico</button>
+                                <button type="button" role="option" data-value="Clássico" aria-selected="false">Clássico</button>
+                                <button type="button" role="option" data-value="Comédia" aria-selected="false">Comédia</button>
+                                <button type="button" role="option" data-value="Conto" aria-selected="false">Conto</button>
+                                <button type="button" role="option" data-value="Crônica" aria-selected="false">Crônica</button>
+                                <button type="button" role="option" data-value="Didático" aria-selected="false">Didático</button>
+                                <button type="button" role="option" data-value="Drama" aria-selected="false">Drama</button>
+                                <button type="button" role="option" data-value="Fantasia" aria-selected="false">Fantasia</button>
+                                <button type="button" role="option" data-value="Ficção científica" aria-selected="false">Ficção científica</button>
+                                <button type="button" role="option" data-value="Filosofia" aria-selected="false">Filosofia</button>
+                                <button type="button" role="option" data-value="História" aria-selected="false">História</button>
+                                <button type="button" role="option" data-value="História em quadrinhos e mangá" aria-selected="false">História em quadrinhos e mangá</button>
+                                <button type="button" role="option" data-value="Infantil" aria-selected="false">Infantil</button>
+                                <button type="button" role="option" data-value="Juvenil" aria-selected="false">Juvenil</button>
+                                <button type="button" role="option" data-value="Mistério" aria-selected="false">Mistério</button>
+                                <button type="button" role="option" data-value="Poesia" aria-selected="false">Poesia</button>
+                                <button type="button" role="option" data-value="Policial" aria-selected="false">Policial</button>
+                                <button type="button" role="option" data-value="Religião e espiritualidade" aria-selected="false">Religião e espiritualidade</button>
+                                <button type="button" role="option" data-value="Romance" aria-selected="false">Romance</button>
+                                <button type="button" role="option" data-value="Suspense" aria-selected="false">Suspense</button>
+                                <button type="button" role="option" data-value="Terror" aria-selected="false">Terror</button>
+                                <button type="button" role="option" data-value="Outro" aria-selected="false">Outro</button>
+                            </div>
+                        </div>
+                        <small></small>
+                    </div>
+
+                    <label>
+                        <span class="field-label">
+                            Quantidade
+                            <span class="required-marker" tabindex="0" aria-label="Campo obrigatório" data-tooltip="Campo obrigatório">*</span>
+                        </span>
+                        <input name="quantity" type="number" min="1" step="1" required>
+                        <small></small>
+                    </label>
+
+                    <label class="genre-other-field" id="genreOtherField" hidden>
+                        Informe o gênero
+                        <input id="genreOtherInput" name="genreOther" type="text" maxlength="80">
+                        <small></small>
+                    </label>
+
+                    <label class="wide">
+                        <span class="field-label">Observação</span>
+                        <span class="textarea-resize-boundary">
+                            <textarea name="notes" rows="4" maxlength="500"></textarea>
+                        </span>
+                        <small></small>
+                    </label>
+
+                    <p class="form-message wide" id="mensagem-alerta" role="status" aria-live="polite"></p>
+
+                    <div class="form-actions wide">
+                        <button type="button" data-book-clear>Limpar</button>
+                        <button class="primary-action" id="btnCadastrar" type="submit">Validar e enviar cadastro</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Central de ajuda: reúne o documento de orientação e o tutorial online. -->
+            <section class="page-intro help-page" id="helpPage" hidden aria-labelledby="helpPageTitle">
+                <header class="help-hero">
+                    <div class="help-hero__icon" aria-hidden="true">
+                        <span class="material-symbols-outlined">help</span>
+                    </div>
+                    <div>
+                        <p class="page-intro__eyebrow">Suporte ao usuário</p>
+                        <h1 id="helpPageTitle">Central de ajuda</h1>
+                        <p class="page-intro__description">
+                            Encontre orientações rápidas para utilizar os principais recursos do Bibliotech.
+                        </p>
+                    </div>
+                </header>
+
+                <div class="help-layout">
+                    <article class="help-document" aria-labelledby="helpFunctionsTitle">
+                        <header class="help-section-heading">
+                            <span class="help-section-heading__icon material-symbols-outlined" aria-hidden="true">apps</span>
+                            <div>
+                                <p class="page-intro__eyebrow">Funções do sistema</p>
+                                <h2 id="helpFunctionsTitle">O que você pode fazer</h2>
+                            </div>
+                        </header>
+
+                        <div class="help-steps">
+                            <article>
+                                <span class="help-steps__number">1</span>
+                                <div>
+                                    <strong>Visão geral e Gestão</strong>
+                                    <p>Acompanhe os indicadores do acervo e acesse as principais tarefas do sistema.</p>
+                                </div>
+                            </article>
+                            <article>
+                                <span class="help-steps__number">2</span>
+                                <div>
+                                    <strong>Cadastro e Acervo</strong>
+                                    <p>Cadastre, pesquise, edite ou exclua livros e consulte a disponibilidade.</p>
+                                </div>
+                            </article>
+                            <article>
+                                <span class="help-steps__number">3</span>
+                                <div>
+                                    <strong>Empréstimos e Devoluções</strong>
+                                    <p>Registre retiradas, acompanhe prazos e confirme o retorno dos livros.</p>
+                                </div>
+                            </article>
+                            <article>
+                                <span class="help-steps__number">4</span>
+                                <div>
+                                    <strong>Relatórios e Notificações</strong>
+                                    <p>Gere análises em PDF e acompanhe avisos de devoluções e atrasos.</p>
+                                </div>
+                            </article>
+                        </div>
+                    </article>
+
+                    <aside class="help-resources" aria-labelledby="helpTutorialTitle">
+                        <header class="help-section-heading">
+                            <span class="help-section-heading__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                            <div>
+                                <p class="page-intro__eyebrow">Tutorial completo</p>
+                                <h2 id="helpTutorialTitle">Como usar o Bibliotech</h2>
+                            </div>
+                        </header>
+
+                        <p>Consulte o documento ilustrado com o passo a passo das telas e funções do sistema.</p>
+
+                        <button class="help-action help-action--primary" id="openHelpManualButton" type="button">
+                            <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
+                            <span>Abrir tutorial ilustrado</span>
+                            <span class="material-symbols-outlined help-action__arrow" aria-hidden="true">open_in_new</span>
+                        </button>
+
+                        <button class="help-action" id="openHelpWrittenManualButton" type="button">
+                            <span class="material-symbols-outlined" aria-hidden="true">description</span>
+                            <span>Abrir manual por escrito</span>
+                            <span class="material-symbols-outlined help-action__arrow" aria-hidden="true">open_in_new</span>
+                        </button>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- Créditos da Sprint 3: apresenta o projeto, a instituição e a equipe. -->
+            <section class="page-intro about-page" id="aboutPage" hidden aria-labelledby="aboutPageTitle">
+                <div class="about-hero">
+                    <div class="about-hero__content">
+                        <p class="page-intro__eyebrow">Projeto acadêmico</p>
+                        <h1 id="aboutPageTitle">Sobre o Bibliotech</h1>
+                        <p class="page-intro__description">
+                            Uma solução desktop criada para tornar o cuidado com a sala de leitura
+                            mais simples, organizado e acessível.
+                        </p>
+
+                        <div class="about-hero__signature" aria-label="Identidade do projeto">
+                            <img class="about-hero__brand" src="assets/bibliotech-loading-logo.png" alt="Bibliotech">
+                            <div>
+                                <span>Tecnologia a serviço da leitura</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <aside class="institution-card" aria-label="Instituição de ensino">
+                        <img src="assets/institution/cruzeiro-do-sul.png" alt="Símbolo da Universidade Cruzeiro do Sul">
+                        <div>
+                            <span>Desenvolvido no curso de</span>
+                            <strong>Análise e Desenvolvimento de Sistemas</strong>
+                            <small>Universidade Cruzeiro do Sul</small>
+                        </div>
+                    </aside>
+                </div>
+
+                <section class="team-section" aria-labelledby="teamTitle">
+                    <header class="team-section__header">
+                        <div>
+                            <p class="page-intro__eyebrow">Créditos</p>
+                            <h2 id="teamTitle">Equipe do projeto</h2>
+                        </div>
+                        <p>Planejamento, desenvolvimento e qualidade reunidos para construir o Bibliotech.</p>
+                    </header>
+
+                    <div class="team-grid">
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--aaron" src="assets/team/aaron.jpeg" alt="Aaron Soncini Estevam" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Produto</span>
+                                <h3>Aaron Soncini Estevam</h3>
+                                <p>Product Owner (PO)</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--ana" src="assets/team/ana-beatriz.jpg" alt="Ana Beatriz Morais Duarte dos Santos" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Agilidade</span>
+                                <h3>Ana Beatriz Morais Duarte dos Santos</h3>
+                                <p>Scrum Master</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--alini" src="assets/team/alini.jpg" alt="Alini Darci da Silva" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Dados</span>
+                                <h3>Alini Darci da Silva</h3>
+                                <p>Desenvolvedora Back-End e Banco de Dados</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--arthur" src="assets/team/arthur.jpeg" alt="Arthur Oliveira dos Reis" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Back-End</span>
+                                <h3>Arthur Oliveira dos Reis</h3>
+                                <p>Desenvolvedor Back-End</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--livia" src="assets/team/livia.jpg" alt="Livia Marques Carrilho" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Front-End</span>
+                                <h3>Livia Marques Carrilho</h3>
+                                <p>Desenvolvedora Front-End</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--matheus" src="assets/team/matheus.jpg" alt="Matheus Simões Mota" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Front-End</span>
+                                <h3>Matheus Simões Mota</h3>
+                                <p>Desenvolvedor Front-End</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--maria" src="assets/team/maria.jpg" alt="Maria Eduarda de Sousa Melo" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Qualidade</span>
+                                <h3>Maria Eduarda de Sousa Melo</h3>
+                                <p>QA Tester — Garantia da Qualidade</p>
+                            </div>
+                        </article>
+
+                        <article class="team-card team-card--coordinator">
+                            <span class="team-card__avatar">
+                                <img class="team-card__avatar--joao" src="assets/team/joao.png" alt="Joao Roberto Ursino Da Cruz" loading="lazy">
+                            </span>
+                            <div class="team-card__content">
+                                <span class="team-card__area">Coordenação</span>
+                                <h3>Joao Roberto Ursino Da Cruz</h3>
+                                <p>Professor e Coordenador do Projeto</p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <footer class="about-footer">
+                    <span>Bibliotech</span>
+                    <p>Tecnologia, colaboração e leitura em um só projeto</p>
+                </footer>
+            </section>
+        </main>
+    </div>
+
+    <!-- Mini tela de edição: a persistência será conectada à API de livros em uma etapa posterior. -->
+    <dialog class="book-edit-modal" id="bookEditModal" aria-labelledby="bookEditModalTitle">
+        <form class="book-edit-modal__card" id="bookEditForm" method="dialog" novalidate>
+            <header class="book-edit-modal__header">
+                <span class="material-symbols-outlined book-edit-modal__icon" aria-hidden="true">edit_note</span>
+                <div>
+                    <p>ATUALIZAÇÃO DO ACERVO</p>
+                    <h2 id="bookEditModalTitle">Editar livro</h2>
+                </div>
+                <button class="book-edit-modal__close material-symbols-outlined" type="button" data-book-edit-close aria-label="Fechar">close</button>
+            </header>
+
+            <div class="book-edit-modal__fields">
+                <label class="book-edit-modal__field book-edit-modal__field--wide">
+                    <span>Título do livro</span>
+                    <input name="title" required maxlength="160" autocomplete="off">
+                    <small></small>
+                </label>
+
+                <label class="book-edit-modal__field">
+                    <span>Autor</span>
+                    <input name="author" required maxlength="120" autocomplete="off">
+                    <small></small>
+                </label>
+
+                <div class="book-edit-modal__field">
+                    <span id="bookEditGenreLabel">Gênero</span>
+                    <input id="bookEditGenreInput" name="genre" type="hidden" required>
+                    <div class="genre-select book-edit-genre-select" id="bookEditGenreSelect">
+                        <button class="genre-select__trigger" id="bookEditGenreButton" type="button" aria-haspopup="listbox" aria-controls="bookEditGenreOptions" aria-expanded="false" aria-labelledby="bookEditGenreLabel bookEditGenreValue">
+                            <span id="bookEditGenreValue">Selecione um gênero</span>
+                            <span class="genre-select__arrow" aria-hidden="true"></span>
+                        </button>
+                        <div class="genre-select__options" id="bookEditGenreOptions" role="listbox" aria-label="Gênero do livro" hidden></div>
+                    </div>
+                    <small></small>
+                </div>
+
+                <label class="book-edit-modal__field">
+                    <span>Quantidade no acervo</span>
+                    <input name="total" type="number" min="1" step="1" required>
+                    <small></small>
+                </label>
+
+                <label class="book-edit-modal__field">
+                    <span>Disponíveis para empréstimo</span>
+                    <input name="available" type="number" min="0" step="1" readonly aria-readonly="true">
+                    <small>Calculado a partir dos empréstimos ativos.</small>
+                </label>
+
+                <label class="book-edit-modal__field">
+                    <span>Data de cadastro</span>
+                    <input name="registeredAt" type="text" readonly aria-readonly="true">
+                    <small>Informação preservada pelo sistema.</small>
+                </label>
+
+                <label class="book-edit-modal__field">
+                    <span>Observação</span>
+                    <textarea name="notes" rows="1" maxlength="500"></textarea>
+                    <small></small>
+                </label>
+            </div>
+
+            <p class="book-edit-modal__message" id="bookEditMessage" role="status" aria-live="polite"></p>
+
+            <footer class="book-edit-modal__actions">
+                <button class="book-edit-modal__cancel" type="button" data-book-edit-close>Cancelar</button>
+                <button class="book-edit-modal__confirm" type="submit">
+                    <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                    <span>Salvar alterações</span>
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog class="deadline-modal book-delete-modal" id="bookDeleteModal" aria-labelledby="bookDeleteModalTitle">
+        <form class="deadline-modal__card book-delete-modal__card" id="bookDeleteForm" method="dialog">
+            <header class="deadline-modal__header">
+                <span class="deadline-modal__icon book-delete-modal__icon" aria-hidden="true">delete</span>
+                <div>
+                    <p>EXCLUSÃO DO ACERVO</p>
+                    <h2 id="bookDeleteModalTitle">Excluir livro</h2>
+                </div>
+                <button class="deadline-modal__close" type="button" data-book-delete-close aria-label="Fechar">close</button>
+            </header>
+
+            <div class="deadline-modal__loan book-delete-modal__book">
+                <span>Livro selecionado</span>
+                <strong id="bookDeleteTitle">Livro</strong>
+                <small id="bookDeleteAuthor">Autor</small>
+            </div>
+
+            <div class="book-delete-modal__notice">
+                <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                <p>O livro deixará de aparecer no acervo. Os empréstimos antigos permanecerão no histórico.</p>
+            </div>
+
+            <p class="book-delete-modal__message" id="bookDeleteMessage" role="status" aria-live="polite"></p>
+
+            <footer class="deadline-modal__actions">
+                <button class="deadline-modal__cancel" type="button" data-book-delete-close>Cancelar</button>
+                <button class="book-delete-modal__confirm" id="bookDeleteConfirmButton" type="submit">
+                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    <span>Excluir livro</span>
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog class="deadline-modal" id="deadlineModal" aria-labelledby="deadlineModalTitle">
+        <form class="deadline-modal__card" id="deadlineForm" method="dialog">
+            <header class="deadline-modal__header">
+                <span class="deadline-modal__icon" aria-hidden="true">edit_calendar</span>
+                <div>
+                    <p>AJUSTE DE PRAZO</p>
+                    <h2 id="deadlineModalTitle">Estender prazo</h2>
+                </div>
+                <button class="deadline-modal__close" type="button" data-deadline-close aria-label="Fechar">close</button>
+            </header>
+
+            <div class="deadline-modal__loan">
+                <span>Empréstimo selecionado</span>
+                <strong id="deadlineBookTitle">Livro</strong>
+                <small>Prazo atual: <time id="deadlineCurrentDate">—</time></small>
+            </div>
+
+            <div class="deadline-modal__shortcuts" role="group" aria-label="Prazos rápidos">
+                <span>Estender rapidamente</span>
+                <button type="button" data-deadline-days="7">+7 dias</button>
+                <button type="button" data-deadline-days="14">+14 dias</button>
+                <button type="button" data-deadline-days="30">+30 dias</button>
+            </div>
+
+            <div class="deadline-modal__date">
+                <span id="deadlineDateLabel">Ou escolha uma data no calendário</span>
+                <div class="loan-date-picker deadline-date-picker">
+                    <button class="loan-date-picker__trigger deadline-date-picker__trigger" id="deadlineDateButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="deadlineDateCalendar" aria-describedby="deadlineDateHelp">
+                        <span id="deadlineDateDisplay">Selecione uma nova data</span>
+                        <span class="material-symbols-outlined loan-date-picker__icon" aria-hidden="true">calendar_month</span>
+                    </button>
+                    <input id="deadlineDate" name="deadlineDate" type="hidden" required>
+
+                    <section class="loan-calendar deadline-calendar" id="deadlineDateCalendar" role="dialog" aria-labelledby="deadlineCalendarMonthLabel" hidden>
+                        <header class="loan-calendar__header">
+                            <button type="button" data-deadline-calendar-action="previous" aria-label="Mês anterior">‹</button>
+                            <strong id="deadlineCalendarMonthLabel" aria-live="polite"></strong>
+                            <button type="button" data-deadline-calendar-action="next" aria-label="Próximo mês">›</button>
+                        </header>
+                        <div class="loan-calendar__weekdays" aria-hidden="true">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                        </div>
+                        <div class="loan-calendar__days" id="deadlineCalendarDays"></div>
+                        <footer class="loan-calendar__footer">
+                            <button type="button" data-deadline-calendar-action="minimum">Primeira data</button>
+                            <button type="button" data-deadline-calendar-action="close">Fechar</button>
+                        </footer>
+                    </section>
+                </div>
+                <small id="deadlineDateHelp">A nova data precisa ser posterior ao prazo atual.</small>
+            </div>
+
+            <footer class="deadline-modal__actions">
+                <button class="deadline-modal__cancel" type="button" data-deadline-close>Cancelar</button>
+                <button class="deadline-modal__confirm" type="submit">Confirmar novo prazo</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog class="deadline-modal return-modal" id="returnModal" aria-labelledby="returnModalTitle">
+        <form class="deadline-modal__card return-modal__card" id="returnForm" method="dialog">
+            <header class="deadline-modal__header">
+                <span class="deadline-modal__icon return-modal__icon" aria-hidden="true">assignment_return</span>
+                <div>
+                    <p>CONFIRMAÇÃO DE RETORNO</p>
+                    <h2 id="returnModalTitle">Registrar devolução</h2>
+                </div>
+                <button class="deadline-modal__close" type="button" data-return-close aria-label="Fechar">close</button>
+            </header>
+
+            <div class="deadline-modal__loan return-modal__loan">
+                <span>Livro selecionado</span>
+                <strong id="returnBookTitle">Livro</strong>
+                <dl class="return-modal__details">
+                    <div>
+                        <dt>Leitor</dt>
+                        <dd id="returnReaderName">—</dd>
+                    </div>
+                    <div>
+                        <dt>Prazo</dt>
+                        <dd><time id="returnDueDate">—</time></dd>
+                    </div>
+                </dl>
+            </div>
+
+            <div class="return-modal__notice">
+                <span aria-hidden="true">info</span>
+                <p>Ao confirmar, o exemplar voltará a ficar disponível no acervo.</p>
+            </div>
+
+            <p class="return-modal__message" id="returnModalMessage" role="status" aria-live="polite"></p>
+
+            <footer class="deadline-modal__actions">
+                <button class="deadline-modal__cancel" type="button" data-return-close>Cancelar</button>
+                <button class="deadline-modal__confirm return-modal__confirm" type="submit">
+                    <span aria-hidden="true">assignment_return</span>
+                    <span>Confirmar devolução</span>
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog class="report-modal" id="returnedMonthReportModal" aria-labelledby="returnedMonthReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">assignment_return</span>
+                <div><p>RELATÓRIO MENSAL</p><h2 id="returnedMonthReportTitle">Livros devolvidos no mês</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="returnedMonthPicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="returnedMonthPicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+            </div>
+            <section class="report-modal__summary" aria-label="Resumo das devoluções">
+                <div><small>Devoluções no mês</small><strong>—</strong></div>
+                <div><small>Dentro do prazo</small><strong>—</strong></div>
+                <div><small>Após o prazo</small><strong>—</strong></div>
+            </section>
+            <div class="report-modal__table-wrap">
+                <div class="report-modal__table" id="report-top-class-table" role="status">
+                    <table class="catalog-table">
+                        <thead>
+                            <tr>
+                                <th>Livro</th>
+                                <th>Leitor</th>
+                                <th>Devolvido em</th>
+                                <th>Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaDevolucoes">
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="report-modal__empty" role="status">
+                    <span class="material-symbols-outlined" aria-hidden="true">inventory_2</span>
+                    <strong>Os dados mensais aparecerão aqui</strong>
+                    <p>A estrutura visual está pronta para receber o histórico de devoluções quando a consulta for disponibilizada.</p>
+                </div>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="returnedMonthPdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="returnedMonthPdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog class="report-modal" id="loanedMonthReportModal" aria-labelledby="loanedMonthReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">output</span>
+                <div><p>RELATÓRIO MENSAL</p><h2 id="loanedMonthReportTitle">Livros emprestados no mês</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="loanedMonthPicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="loanedMonthPicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+            </div>
+            <section class="report-modal__summary" aria-label="Resumo dos empréstimos">
+                <div><small>Empréstimos no mês</small><strong>—</strong></div>
+                <div><small>Alunos atendidos</small><strong>—</strong></div>
+                <div><small>Turmas alcançadas</small><strong>—</strong></div>
+            </section>
+            <div class="report-modal__table-wrap">
+                <div class="report-modal__table" id="report-top-class-table" role="status">
+                    <table class="catalog-table">
+                        <thead>
+                            <tr>
+                                <th>Livro</th>
+                                <th>Leitor</th>
+                                <th>Emprestado em</th>
+                                <th>Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaEmprestimos">
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="report-modal__empty" role="status">
+                    <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
+                    <strong>Os dados mensais aparecerão aqui</strong>
+                    <p>A estrutura visual está pronta para receber o histórico de empréstimos quando a consulta for disponibilizada.</p>
+                </div>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="loanedPdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="loanedPdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog class="report-modal" id="topClassMonthReportModal" aria-labelledby="topClassMonthReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">school</span>
+                <div><p>ENGAJAMENTO MENSAL</p><h2 id="topClassMonthReportTitle">Turma destaque em leitura</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="topClassMonthPicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="topClassMonthPicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+            </div>
+            <section class="report-modal__summary" aria-label="Resumo da turma destaque em leitura">
+                <div><small>Turma destaque</small><strong id="top-class-name">—</strong></div>
+                <div><small>Livros retirados</small><strong id="top-class-books">—</strong></div>
+                <div><small>Alunos leitores</small><strong id="top-class-students">—</strong></div>
+            </section>
+            <div class="report-modal__table-wrap">
+                <div class="report-modal__table" id="report-top-class-table" role="status">
+                    <table class="catalog-table">
+                        <thead>
+                            <tr>
+                                <th>Posição</th>
+                                <th>Turma</th>
+                                <th>Leituras</th>
+                                <th>Alunos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaTurmasDestaque"></tbody>
+                    </table>
+                </div>
+                <div class="report-modal__empty" id="report-top-class-empty" role="status">
+                    <span class="material-symbols-outlined" aria-hidden="true">leaderboard</span>
+                    <strong>O ranking das turmas aparecerá aqui</strong>
+                    <p>A estrutura está pronta para receber os dados de engajamento quando a consulta for disponibilizada.</p>
+                </div>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="topClassMonthPdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="topClassMonthPdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog class="report-modal" id="topBooksMonthReportModal" aria-labelledby="topBooksMonthReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">auto_stories</span>
+                <div><p>DESTAQUES DO MÊS</p><h2 id="topBooksMonthReportTitle">Livros mais lidos do mês</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="topBooksMonthPicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="topBooksMonthPicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+            </div>
+            <section class="report-modal__summary" aria-label="Resumo dos livros mais lidos">
+                <div><small>Livro destaque</small><strong>—</strong></div>
+                <div><small>Total de leituras</small><strong>—</strong></div>
+                <div><small>Títulos diferentes</small><strong>—</strong></div>
+            </section>
+            <div class="report-modal__table-wrap">
+                <div class="report-modal__table" id="report-top-class-table" role="status">
+                    <table class="catalog-table">
+                        <thead>
+                            <tr>
+                                <th>Posição</th>
+                                <th>Livro</th>
+                                <th>Autor</th>
+                                <th>Leituras</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaLivrosMaisLidosMes">
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="report-modal__empty" role="status">
+                    <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
+                    <strong>Os livros mais lidos aparecerão aqui</strong>
+                    <p>A estrutura está pronta para receber o ranking mensal quando a consulta for disponibilizada.</p>
+                </div>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="topBooksMonthPdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="topBooksMonthPdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog class="report-modal" id="topBooksAllTimeReportModal" aria-labelledby="topBooksAllTimeReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">workspace_premium</span>
+                <div><p>RANKING HISTÓRICO</p><h2 id="topBooksAllTimeReportTitle">Livros mais lidos de todos</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="topBooksAllTimePicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="topBooksAllTimePicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+                <p class="report-date-picker__scope">Dados exibidos: todo o histórico da biblioteca.</p>
+            </div>
+            <section class="report-modal__summary" aria-label="Resumo histórico de leituras">
+                <div><small>Livro mais lido</small><strong id="most-read-book">—</strong></div>
+                <div><small>Total de leituras</small><strong id="total-readings">—</strong></div>
+                <div><small>Livros no ranking</small><strong id="books-ranking">—</strong></div>
+            </section>
+            <div class="report-modal__table-wrap">
+                <div class="report-modal__table" id="report-modal__table_ranking" role="status">
+                    <table class="catalog-table"> 
+                    <thead> 
+                        <tr> 
+                            <th>Posição</th> 
+                            <th>Livro</th> 
+                            <th>Autor</th> 
+                            <th>Leituras</th> 
+                        </tr> 
+                    </thead> 
+                    <tbody id="listaLivrosMaisLidos"> </tbody> 
+                </table>
+                </div>
+                <div class="report-modal__empty" id="report-modal__empty_ranking" role="status">
+                    <span class="material-symbols-outlined" aria-hidden="true">military_tech</span>
+                    <strong>O ranking histórico aparecerá aqui</strong>
+                    <p>A estrutura está pronta para receber o histórico completo quando a consulta for disponibilizada.</p>
+                </div>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="topBooksAllTimePdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="topBooksAllTimePdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog class="report-modal report-modal--general" id="generalReportModal" aria-labelledby="generalReportTitle">
+        <article class="report-modal__card">
+            <header class="report-modal__header">
+                <span class="report-modal__icon material-symbols-outlined" aria-hidden="true">analytics</span>
+                <div><p>VISÃO COMPLETA</p><h2 id="generalReportTitle">Relatório geral</h2></div>
+                <button class="report-modal__close material-symbols-outlined" type="button" data-report-close aria-label="Fechar relatório">close</button>
+            </header>
+            <div class="report-date-picker" data-report-date-picker>
+                <button class="report-date-picker__trigger" type="button" aria-expanded="false" aria-controls="generalReportPicker">
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                    <span><small>Escolher período do relatório</small><strong data-report-current-month>—</strong></span>
+                    <span class="report-date-picker__arrow material-symbols-outlined" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="report-date-picker__popover" id="generalReportPicker" hidden>
+                    <header>
+                        <button type="button" data-report-year-change="-1" aria-label="Ano anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
+                        <strong data-report-picker-year></strong>
+                        <button type="button" data-report-year-change="1" aria-label="Próximo ano"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+                    </header>
+                    <div class="report-date-picker__months" role="grid" aria-label="Escolha o mês">
+                        <button type="button" data-report-month="0">Jan</button><button type="button" data-report-month="1">Fev</button><button type="button" data-report-month="2">Mar</button>
+                        <button type="button" data-report-month="3">Abr</button><button type="button" data-report-month="4">Mai</button><button type="button" data-report-month="5">Jun</button>
+                        <button type="button" data-report-month="6">Jul</button><button type="button" data-report-month="7">Ago</button><button type="button" data-report-month="8">Set</button>
+                        <button type="button" data-report-month="9">Out</button><button type="button" data-report-month="10">Nov</button><button type="button" data-report-month="11">Dez</button>
+                    </div>
+                    <button class="report-date-picker__today" type="button" data-report-current-date>Usar mês atual</button>
+                </div>
+                <p class="report-date-picker__scope">Dados exibidos: indicadores atuais da biblioteca.</p>
+            </div>
+            <section class="reports-metrics" aria-label="Indicadores da biblioteca">
+                <article class="report-metric-card">
+                    <header><span>Acervo total</span><span class="material-symbols-outlined" aria-hidden="true">menu_book</span></header>
+                    <div><strong id="reportMetricTotal">—</strong><small id="reportMetricTotalStatus">Aguardando dados</small></div>
+                </article>
+                <article class="report-metric-card report-metric-card--available">
+                    <header><span>Disponíveis</span><span class="material-symbols-outlined" aria-hidden="true">check_circle</span></header>
+                    <div><strong id="reportMetricAvailable">—</strong><small id="reportMetricAvailableStatus">Aguardando dados</small></div>
+                </article>
+                <article class="report-metric-card report-metric-card--loaned">
+                    <header><span>Em empréstimo</span><span class="material-symbols-outlined" aria-hidden="true">swap_horiz</span></header>
+                    <div><strong id="reportMetricLoaned">—</strong><small id="reportMetricLoanedStatus">Aguardando dados</small></div>
+                </article>
+                <article class="report-metric-card report-metric-card--attention">
+                    <header><span>Atrasados</span><span class="material-symbols-outlined" aria-hidden="true">warning</span></header>
+                    <div><strong id="reportMetricOverdue">—</strong><small id="reportMetricOverdueStatus">Aguardando dados</small></div>
+                </article>
+            </section>
+            <div class="report-modal__notice" id="report-modal-info">
+                <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                <p>Este resumo usa os indicadores já disponíveis no sistema. As análises históricas serão incorporadas quando as consultas específicas estiverem prontas.</p>
+            </div>
+            <footer class="report-modal__actions">
+                <button class="pdf-action" type="button" data-pdf-demo aria-describedby="generalPdfStatus">
+                    <span class="pdf-action__progress" aria-hidden="true"></span>
+                    <span class="pdf-action__icon material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                    <span class="pdf-action__label">Gerar PDF</span>
+                    <span class="pdf-action__check material-symbols-outlined" aria-hidden="true">check</span>
+                </button>
+                <span class="sr-only" id="generalPdfStatus" data-pdf-status aria-live="polite"></span>
+            </footer>
+        </article>
+    </dialog>
+
+    <div class="preview-note" role="note">Prévia web do design · sem dados reais</div>
+    <script src="preview-api.js"></script>
+    <script src="script.js?v=7"></script>
+</body>
+</html>
